@@ -1,0 +1,23 @@
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    middle_name VARCHAR(50),
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    enabled BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE tokens (
+    id BIGSERIAL PRIMARY KEY,
+    type VARCHAR(20) NOT NULL, -- 'VERIFY' или 'RESET'
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    issued_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    consumed BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX idx_tokens_expires_at ON tokens(expires_at);
