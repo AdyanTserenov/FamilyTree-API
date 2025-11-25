@@ -1,9 +1,6 @@
 package com.project.familytree.controllers;
 
 import com.project.familytree.dto.*;
-import com.project.familytree.exceptions.InvalidRequestException;
-import com.project.familytree.exceptions.InvalidTokenException;
-import com.project.familytree.exceptions.UserNotFoundException;
 import com.project.familytree.security.JwtCore;
 import com.project.familytree.services.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,19 +14,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.validation.FieldError;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 
