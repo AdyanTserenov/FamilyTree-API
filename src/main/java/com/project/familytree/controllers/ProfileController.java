@@ -3,6 +3,7 @@ package com.project.familytree.controllers;
 import com.project.familytree.dto.CustomApiResponse;
 import com.project.familytree.dto.ProfileResponse;
 import com.project.familytree.exceptions.EmailNotFound;
+import com.project.familytree.impls.UserDetailsImpl;
 import com.project.familytree.models.User;
 import com.project.familytree.security.JwtCore;
 import com.project.familytree.services.UserService;
@@ -16,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -77,17 +80,10 @@ public class ProfileController {
                     )
             }
     )
-        public ResponseEntity<CustomApiResponse<ProfileResponse>> getInfo(HttpServletRequest request) {
-                String authorizationHeader = request.getHeader("Authorization");
-    
-                if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
-                }
-    
-                String token = authorizationHeader.substring(7);
-                String email = jwtCore.getEmailFromJwt(token);
-        try {
+    public ResponseEntity<CustomApiResponse<ProfileResponse>> getInfo(@AuthenticationPrincipal UserDetails userDetails) {
+            String email = userDetails.getUsername();
             User user = userService.findByEmail(email);
+
             ProfileResponse profileResponse = new ProfileResponse(
                     user.getFirstName(),
                     user.getLastName(),
@@ -95,9 +91,5 @@ public class ProfileController {
                     user.getEmail()
             );
             return ResponseEntity.ok(CustomApiResponse.success(profileResponse));
-        } catch (EmailNotFound e) {
-            log.info("User with email not found {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
-        }
     }
 }

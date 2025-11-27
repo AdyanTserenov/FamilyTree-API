@@ -47,25 +47,25 @@ public class TokenService {
     @Transactional(readOnly = true)
     public Long validateToken(String rawToken, TokenType expectedType) {
         if (rawToken == null || rawToken.isBlank()) {
-            throw new InvalidTokenException("Token is blank");
+            throw new InvalidTokenException("Токен пуст");
         }
 
         String hash = Token.hash(rawToken);
         Token token = tokenRepository.findByTokenHash(hash).orElseThrow(() ->
-                new TokenNotFoundException("Invalid or expired token"));
+                new TokenNotFoundException("Некорректный или просроченный токен"));
 
         if (!token.getType().equals(expectedType)) {
-            throw new InvalidTokenException("Invalid token type");
+            throw new InvalidTokenException("Некорректный тип токена");
         }
 
         TokenDetails details = token.getDetails();
 
         if (details.isConsumed()) {
-            throw new TokenAlreadyUsedException("Token has already been used");
+            throw new TokenAlreadyUsedException("Токен уже использовался");
         }
 
         if (details.getExpiresAt().isBefore(Instant.now())) {
-            throw new TokenExpiredException("Token has expired");
+            throw new TokenExpiredException("Токен просрочен");
         }
 
         return details.getUserId();
@@ -75,7 +75,7 @@ public class TokenService {
     public void consumeToken(String rawToken) {
         String hash = Token.hash(rawToken);
         Token token = tokenRepository.findByTokenHash(hash)
-                .orElseThrow(() -> new TokenNotFoundException("Token not found"));
+                .orElseThrow(() -> new TokenNotFoundException("Токен не найден"));
 
         token.getDetails().setConsumed(true);
         tokenRepository.save(token);

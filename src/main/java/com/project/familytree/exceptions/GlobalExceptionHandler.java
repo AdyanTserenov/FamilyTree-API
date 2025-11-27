@@ -21,25 +21,35 @@ public class GlobalExceptionHandler {
         ex.getBindingResult().getFieldErrors().forEach(error ->
                 errors.put(error.getField(), error.getDefaultMessage())
         );
-        return ResponseEntity.badRequest().body(CustomApiResponse.error("Validation failed", errors));
+        return ResponseEntity.badRequest().body(CustomApiResponse.error("Ошибка валидации", errors));
     }
 
-    @ExceptionHandler({UserNotFoundException.class, EmailNotFound.class})
+    @ExceptionHandler({UserNotFoundException.class, EmailNotFound.class, TokenNotFoundException.class})
     public ResponseEntity<CustomApiResponse<?>> handleNotFoundException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(CustomApiResponse.error(ex.getMessage(), null));
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<CustomApiResponse<Void>> handleGeneric(Exception ex, HandlerMethod handlerMethod) {
-        // Пропускаем ошибки, связанные с документацией
-        if (handlerMethod != null) {
-            String className = handlerMethod.getBeanType().getName();
-            if (className.contains("OpenApiResource") || className.contains("Swagger")) {
-                throw new RuntimeException(ex); // не перехватываем — пусть упадёт как есть
-            }
-        }
-        log.error("Unexpected error", ex);
+    @ExceptionHandler({InvalidRequestException.class, InvalidTokenException.class})
+    public ResponseEntity<CustomApiResponse<?>> handleInvalidException(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(CustomApiResponse.error(ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(UserRegistrationFailedException.class)
+    public ResponseEntity<CustomApiResponse<?>> handleRegistrationFailed(UserRegistrationFailedException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(CustomApiResponse.error("Не удалось завершить регистрацию", null));
+    }
+
+    @ExceptionHandler(EmailSenderException.class)
+    public ResponseEntity<CustomApiResponse<?>> handleEmailSenderException(EmailSenderException ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(CustomApiResponse.error("Не удалось отправить письмо для сброса пароля", null));
+    }
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<CustomApiResponse<Void>> handleGeneric(RuntimeException ex) {
+        log.error("Непредвиденная ошибка", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(CustomApiResponse.error("Internal server error", null));
     }

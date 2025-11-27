@@ -152,7 +152,7 @@ public class SecurityController {
             }
     )
     ResponseEntity<CustomApiResponse<String>> signin(@Valid @RequestBody SignInRequest signinRequest) {
-    Authentication authentication = authenticationManager.authenticate(
+        Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             signinRequest.getEmail(),
                             signinRequest.getPassword()));

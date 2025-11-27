@@ -7,6 +7,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -20,47 +21,35 @@ import java.io.IOException;
 public class TokenFilter extends OncePerRequestFilter {
     private final JwtCore jwtCore;
     private final UserService userService;
+    private final SecurityResponseUtil securityResponseUtil;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String jwt = null;
-        String email = null;
-        UserDetails userDetails;
-        UsernamePasswordAuthenticationToken auth;
         try {
             String headerAuth = request.getHeader("Authorization");
             if (headerAuth != null && headerAuth.startsWith("Bearer ")) {
-                jwt = headerAuth.substring(7);
-            }
-            if (jwt != null) {
+                String jwt = headerAuth.substring(7);
                 try {
-                    email = jwtCore.getEmailFromJwt(jwt);
-                    System.out.println("Email from JWT: " + email);
+                    String email = jwtCore.getEmailFromJwt(jwt);
+                    if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                        UserDetails userDetails = userService.loadUserByUsername(email);
+                        UsernamePasswordAuthenticationToken auth =
+                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                    }
                 } catch (ExpiredJwtException e) {
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token has expired");
+                    securityResponseUtil.sendError(response, HttpStatus.UNAUTHORIZED, "Токен просрочен");
                     return;
-                } catch (Exception e) {
-                    System.out.println("Error while parsing JWT: " + e.getMessage());
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+                } catch (io.jsonwebtoken.MalformedJwtException | io.jsonwebtoken.SignatureException e) {
+                    securityResponseUtil.sendError(response, HttpStatus.UNAUTHORIZED, "Некорректный токен");
                     return;
-                }
-                if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    userDetails = userService.loadUserByUsername(email);
-                    auth = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-                    System.out.println("Authentication set for user with email: " + email);
                 }
             }
+            filterChain.doFilter(request, response);
         } catch (Exception e) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
-            return;
+            securityResponseUtil.sendError(response, HttpStatus.UNAUTHORIZED, "Ошибка аутентификации");
         }
-        filterChain.doFilter(request, response);
     }
 }

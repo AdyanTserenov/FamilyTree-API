@@ -58,7 +58,7 @@ public class MailSenderService {
             return message;
         } catch (Exception e) {
             log.error("Ошибка отправки письма: {}", e.getMessage());
-            throw new EmailSenderException("Failed to send email");
+            throw new EmailSenderException("Ошибка отправки письма");
         }
     }
 }

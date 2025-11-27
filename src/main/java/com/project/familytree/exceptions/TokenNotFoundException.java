@@ -1,6 +1,6 @@
 package com.project.familytree.exceptions;
 
-public class TokenNotFoundException extends TokenException {
+public class TokenNotFoundException extends RuntimeException {
     public TokenNotFoundException(String message) {
         super(message);
     }
