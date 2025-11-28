@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.HandlerMethod;
 
+import java.nio.file.AccessDeniedException;
 import java.util.HashMap;
 
 @Slf4j
@@ -47,6 +48,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(CustomApiResponse.error("Не удалось отправить письмо для сброса пароля", null));
     }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<CustomApiResponse<?>> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(CustomApiResponse.error("Недостаточно прав для выполнения операции", null));
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<CustomApiResponse<Void>> handleGeneric(RuntimeException ex) {
         log.error("Непредвиденная ошибка", ex);

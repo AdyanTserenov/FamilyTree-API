@@ -20,4 +20,19 @@ CREATE TABLE tokens (
     consumed BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+CREATE TABLE trees (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE tree_memberships (
+    id BIGSERIAL PRIMARY KEY,
+    tree_id BIGINT NOT NULL REFERENCES family_trees(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('OWNER', 'EDITOR', 'VIEWER')),
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(tree_id, user_id)
+);
+
 CREATE INDEX idx_tokens_expires_at ON tokens(expires_at);
