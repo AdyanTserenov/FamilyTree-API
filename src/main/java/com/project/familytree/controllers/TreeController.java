@@ -3,6 +3,7 @@ package com.project.familytree.controllers;
 import com.project.familytree.dto.CustomApiResponse;
 import com.project.familytree.dto.InviteRequest;
 import com.project.familytree.dto.TreeRequest;
+import com.project.familytree.dto.UserDTO;
 import com.project.familytree.models.User;
 import com.project.familytree.services.TreeService;
 import com.project.familytree.services.UserService;
@@ -16,6 +17,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.AccessDeniedException;
+import java.util.List;
 
 
 @Slf4j
@@ -55,18 +57,16 @@ public class TreeController {
         return ResponseEntity.ok(CustomApiResponse.success("Пользователь успешно добавлен"));
     }
 
-    /*
     @GetMapping("/{treeId}/members")
-    public ResponseEntity<CustomApiResponse<List<User>>> getMembers(@PathVariable Long treeId,
-                                                                    @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
-
+    public ResponseEntity<CustomApiResponse<List<UserDTO>>> getMembers(@PathVariable Long treeId,
+                                                                       @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
         Long userId = userService.findIdByDetails(userDetails);
 
-        if (!permissionService.canView(treeId, userId)) {
+        if (!treeService.canView(treeId, userId)) {
             throw new AccessDeniedException("Нет прав");
         }
 
+        List<UserDTO> members = treeService.getMembers(treeId);
+        return ResponseEntity.ok(CustomApiResponse.success(members));
     }
-
-     TODO */
 }

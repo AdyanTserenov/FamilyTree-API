@@ -1,13 +1,19 @@
 package com.project.familytree.services;
 
+import com.project.familytree.dto.UserDTO;
+import com.project.familytree.exceptions.InvalidRequestException;
 import com.project.familytree.impls.TreeRole;
 import com.project.familytree.models.Tree;
 import com.project.familytree.models.TreeMembership;
+import com.project.familytree.models.User;
 import com.project.familytree.repositories.TreeMembershipRepository;
 import com.project.familytree.repositories.TreeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.lang.reflect.Member;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -55,5 +61,20 @@ public class TreeService {
 
     public boolean isOwner(Long treeId, Long userId) {
         return hasRole(treeId, userId, TreeRole.OWNER);
+    }
+
+    public List<UserDTO> getMembers(Long treeId) {
+        List<TreeMembership> memberships = membershipRepository.findByTreeId(treeId);
+
+        if (memberships.isEmpty()) {
+            throw new InvalidRequestException("Дерево не существует");
+        }
+
+        return memberships.stream()
+                .map(tm -> {
+                    User u = tm.getUser();
+                    return new UserDTO(u.getFirstName(), u.getLastName(), u.getMiddleName(), u.getEmail());
+                })
+                .toList();
     }
 }
