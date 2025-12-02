@@ -40,6 +40,10 @@ public class UserService implements UserDetailsService {
                 .orElseThrow(() -> new UserNotFoundException("Пользователь с таким ID не существует"));
     }
 
+    public Long findIdByDetails(UserDetails userDetails) {
+        return findByEmail(userDetails.getUsername()).getId();
+    }
+
     public void signUpUser(SignUpRequest signUpRequest) throws InvalidRequestException {
         if (userRepository.existsByEmail(signUpRequest.getEmail())) {
             throw new InvalidRequestException("Пользователь с таким email уже существует");

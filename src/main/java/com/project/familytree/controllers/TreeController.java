@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.AccessDeniedException;
 
+
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -29,10 +30,8 @@ public class TreeController {
     @PostMapping("/create")
     public ResponseEntity<CustomApiResponse<String>> createTree(@Valid @RequestBody TreeRequest treeRequest,
                                                                 @AuthenticationPrincipal UserDetails userDetails) {
-        String email = userDetails.getUsername();
-        User user = userService.findByEmail(email);
-
-        treeService.createTree(treeRequest.getName(), user.getId());
+        Long userId = userService.findIdByDetails(userDetails);
+        treeService.createTree(treeRequest.getName(), userId);
 
         return ResponseEntity.ok(CustomApiResponse.success("Дерево успешно создано"));
     }
@@ -42,8 +41,9 @@ public class TreeController {
             @PathVariable Long treeId,
             @Valid @RequestBody InviteRequest inviteRequest,
             @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
-        String email = userDetails.getUsername();
-        Long userId = userService.findByEmail(email).getId();
+
+        Long userId = userService.findIdByDetails(userDetails);
+
         if (!treeService.isOwner(treeId, userId)) {
             throw new AccessDeniedException("Только владелец может создавать приглашения");
         }
@@ -59,8 +59,9 @@ public class TreeController {
     @GetMapping("/{treeId}/members")
     public ResponseEntity<CustomApiResponse<List<User>>> getMembers(@PathVariable Long treeId,
                                                                     @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
-        String email = userDetails.getUsername();
-        Long userId = userService.findByEmail(email).getId();
+
+        Long userId = userService.findIdByDetails(userDetails);
+
         if (!permissionService.canView(treeId, userId)) {
             throw new AccessDeniedException("Нет прав");
         }
