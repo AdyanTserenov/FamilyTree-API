@@ -35,4 +35,15 @@ CREATE TABLE tree_memberships (
     UNIQUE(tree_id, user_id)
 );
 
+CREATE TABLE invitations (
+    id BIGSERIAL PRIMARY KEY,
+    token VARCHAR(255) NOT NULL UNIQUE,
+    tree_id BIGINT NOT NULL REFERENCES trees(id),
+    email VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP NOT NULL,
+    accepted BOOLEAN DEFAULT FALSE
+);
+
 CREATE INDEX idx_tokens_expires_at ON tokens(expires_at);

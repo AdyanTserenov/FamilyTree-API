@@ -7,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.HandlerMethod;
 
 import java.nio.file.AccessDeniedException;
 import java.util.HashMap;
@@ -25,7 +24,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(CustomApiResponse.error("Ошибка валидации", errors));
     }
 
-    @ExceptionHandler({UserNotFoundException.class, EmailNotFound.class, TokenNotFoundException.class})
+    @ExceptionHandler(
+                {
+                    UserNotFoundException.class,
+                    EmailNotFoundException.class,
+                    TokenNotFoundException.class,
+                    TreeNotFoundException.class
+                }
+            )
     public ResponseEntity<CustomApiResponse<?>> handleNotFoundException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(CustomApiResponse.error(ex.getMessage(), null));

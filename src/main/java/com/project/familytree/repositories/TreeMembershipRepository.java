@@ -4,10 +4,12 @@ import com.project.familytree.models.TreeMembership;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface TreeMembershipRepository extends JpaRepository<TreeMembership, Long> {
     Optional<TreeMembership> findByTreeIdAndUserId(Long treeId, Long userId);
 

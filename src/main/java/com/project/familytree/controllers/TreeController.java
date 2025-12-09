@@ -18,52 +18,74 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.AccessDeniedException;
 import java.util.List;
+import java.util.Map;
 
 
 @Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/trees")
-@Tag(name = "Tree Controller", description = "API для созданий и изменений древ")
+@Tag(name = "Tree Controller", description = "API для создания, управления и совместной работы с семейными древами")
 public class TreeController {
     private final TreeService treeService;
     private final UserService userService;
 
     @PostMapping("/create")
-    public ResponseEntity<CustomApiResponse<String>> createTree(@Valid @RequestBody TreeRequest treeRequest,
-                                                                @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<CustomApiResponse<String>> createTree(
+            @Valid @RequestBody TreeRequest treeRequest,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
         Long userId = userService.findIdByDetails(userDetails);
         treeService.createTree(treeRequest.getName(), userId);
-
         return ResponseEntity.ok(CustomApiResponse.success("Дерево успешно создано"));
     }
 
     @PostMapping("/{treeId}/invite")
-    public ResponseEntity<CustomApiResponse<String>> invite(
+    public ResponseEntity<CustomApiResponse<String>> inviteByEmail(
             @PathVariable Long treeId,
             @Valid @RequestBody InviteRequest inviteRequest,
             @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
 
+        Long inviterId = userService.findIdByDetails(userDetails);
+        treeService.sendInviteByEmail(treeId, inviteRequest.email(), inviteRequest.role(), inviterId);
+
+        return ResponseEntity.ok(CustomApiResponse.success(
+                "Приглашение отправлено на " + inviteRequest.email()));
+    }
+
+    @PostMapping("/{treeId}/invite-link")
+    public ResponseEntity<CustomApiResponse<Map<String, String>>> generateInviteLink(
+            @PathVariable Long treeId,
+            @Valid @RequestBody InviteRequest inviteRequest,
+            @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
+
+        Long inviterId = userService.findIdByDetails(userDetails);
+        String token = treeService.createInviteToken(treeId, inviteRequest.email(), inviteRequest.role(), inviterId);
+        String inviteLink = "https://familytree.example.com/invite/" + token;
+
+        return ResponseEntity.ok(CustomApiResponse.success(
+                Map.of("inviteLink", inviteLink)));
+    }
+
+    @GetMapping("/invite/{token}")
+    public ResponseEntity<CustomApiResponse<String>> acceptInvite(
+            @PathVariable String token,
+            @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
+
         Long userId = userService.findIdByDetails(userDetails);
+        treeService.acceptInvitation(token, userId);
 
-        if (!treeService.isOwner(treeId, userId)) {
-            throw new AccessDeniedException("Только владелец может создавать приглашения");
-        }
-
-        User invitedUser = userService.findByEmail(inviteRequest.email());
-        treeService.addMember(treeId, invitedUser.getId(), inviteRequest.role());
-
-        //TODO invite email send
-        return ResponseEntity.ok(CustomApiResponse.success("Пользователь успешно добавлен"));
+        return ResponseEntity.ok(CustomApiResponse.success("Вы успешно присоединились к дереву!"));
     }
 
     @GetMapping("/{treeId}/members")
-    public ResponseEntity<CustomApiResponse<List<UserDTO>>> getMembers(@PathVariable Long treeId,
-                                                                       @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
-        Long userId = userService.findIdByDetails(userDetails);
+    public ResponseEntity<CustomApiResponse<List<UserDTO>>> getMembers(
+            @PathVariable Long treeId,
+            @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
 
+        Long userId = userService.findIdByDetails(userDetails);
         if (!treeService.canView(treeId, userId)) {
-            throw new AccessDeniedException("Нет прав");
+            throw new AccessDeniedException("Нет прав на просмотр участников");
         }
 
         List<UserDTO> members = treeService.getMembers(treeId);

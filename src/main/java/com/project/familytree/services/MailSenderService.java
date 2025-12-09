@@ -1,6 +1,8 @@
 package com.project.familytree.services;
 
 import com.project.familytree.exceptions.EmailSenderException;
+import com.project.familytree.impls.TreeRole;
+import com.project.familytree.models.User;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +18,7 @@ public class MailSenderService {
     private final EmailTemplateService emailTemplateService;
 
     public void sendPasswordResetEmail(String email, String token, String userName) {
-        String resetLink = "https://simulteh.com/reset-password?token=" + token;
+        String resetLink = "https://familytree.com/reset-password?token=" + token;
         String subject = "Сброс пароля - FamilyTree";
 
         MimeMessage message = buildMessage(subject, email, resetLink, userName);
@@ -26,7 +28,7 @@ public class MailSenderService {
     }
 
     public void sendCreationEmail(String email, String token, String userName) {
-        String creationLink = "https://simulteh.com/confirm?token=" + token;
+        String creationLink = "https://familytree.com/confirm?token=" + token;
         String subject = "Подтверждение регистрации - FamilyTree";
 
         MimeMessage message = buildMessage(subject, email, creationLink, userName);
@@ -59,6 +61,41 @@ public class MailSenderService {
         } catch (Exception e) {
             log.error("Ошибка отправки письма: {}", e.getMessage());
             throw new EmailSenderException("Ошибка отправки письма");
+        }
+    }
+
+    public void sendInvitationEmail(
+            String toEmail,
+            String treeName,
+            User inviter,
+            TreeRole role,
+            String inviteLink
+    ) {
+        try {
+            MimeMessage message = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setSubject("Вас пригласили в семейное древо «" + treeName + "»");
+            helper.setFrom("abtserenov@edu.hse.ru", "FamilyTree Support");
+            helper.setTo(toEmail);
+
+            String inviterName = inviter.getFirstName() + " " + inviter.getLastName();
+            String roleStr = switch (role) {
+                case OWNER -> "Владелец";
+                case EDITOR -> "Редактор";
+                case VIEWER -> "Зритель";
+            };
+
+            String html = emailTemplateService.buildInvitationEmail(
+                    treeName, inviterName, roleStr, inviteLink
+            );
+
+            helper.setText(html, true);
+            javaMailSender.send(message);
+            log.info("Приглашение отправлено на: {}", toEmail);
+        } catch (Exception e) {
+            log.error("Ошибка отправки приглашения: {}", e.getMessage());
+            throw new EmailSenderException("Не удалось отправить приглашение");
         }
     }
 }

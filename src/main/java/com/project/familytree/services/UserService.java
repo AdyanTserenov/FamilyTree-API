@@ -25,14 +25,14 @@ public class UserService implements UserDetailsService {
     private final TokenService tokenService;
 
     @Override
-    public UserDetails loadUserByUsername(String email) throws EmailNotFound {
+    public UserDetails loadUserByUsername(String email) throws EmailNotFoundException {
         User user = findByEmail(email);
         return UserDetailsImpl.build(user);
     }
 
-    public User findByEmail(String email) throws EmailNotFound {
+    public User findByEmail(String email) throws EmailNotFoundException {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new EmailNotFound("Почта не найдена"));
+                .orElseThrow(() -> new EmailNotFoundException("Почта не найдена"));
     }
 
     public User findById(Long id) {
