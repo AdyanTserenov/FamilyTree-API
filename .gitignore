@@ -24,7 +24,7 @@ hs_err_pid*
 replay_pid*
 
 # IDE
-.idea/
+auth-service/.idea/
 *.iml
 
 # Build
@@ -37,7 +37,7 @@ build/
 # Logs
 logs/
 *.log
-.m2
+auth-service/.m2
 
 # Docker
 docker-compose.yml
@@ -45,3 +45,8 @@ Dockerfile
 
 .gitignore
 .env
+.vscode
+.idea
+
+family-tree-auth-starter/target
+tree-service/target
