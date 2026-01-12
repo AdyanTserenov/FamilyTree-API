@@ -116,8 +116,40 @@ public class TokenService {
         return new ResetToken(token.getUser().getId());
     }
 
+    public Long validateToken(String rawToken, TokenType expectedType) {
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new InvalidTokenException("Токен пуст");
+        }
+
+        String hash = hashToken(rawToken);
+        Token token = tokenRepository.findByTokenHash(hash).orElseThrow(() ->
+                new TokenNotFoundException("Некорректный или просроченный токен"));
+
+        if (token.getType() != expectedType) {
+            throw new InvalidTokenException("Некорректный тип токена");
+        }
+
+        if (token.getConsumed()) {
+            throw new TokenAlreadyUsedException("Токен уже использовался");
+        }
+
+        if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new TokenExpiredException("Токен просрочен");
+        }
+
+        return token.getUser().getId();
+    }
+
+    public void consumeToken(String rawToken) {
+        String hash = hashToken(rawToken);
+        Token token = tokenRepository.findByTokenHash(hash).orElseThrow(() ->
+                new TokenNotFoundException("Токен не найден"));
+        token.setConsumed(true);
+        tokenRepository.save(token);
+    }
+
     private String hashToken(String token) {
-        // Simple hash for demo; in production use proper hashing
+        // Для demo используем простой хэш, в продакшене использовать BCrypt или SHA-256
         return String.valueOf(token.hashCode());
     }
 }

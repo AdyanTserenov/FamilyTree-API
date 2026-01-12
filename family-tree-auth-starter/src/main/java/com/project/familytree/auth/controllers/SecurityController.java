@@ -1,6 +1,7 @@
 package com.project.familytree.auth.controllers;
 
 import com.project.familytree.auth.dto.*;
+import com.project.familytree.auth.models.User;
 import com.project.familytree.auth.security.JwtUtils;
 import com.project.familytree.auth.services.TokenService;
 import com.project.familytree.auth.services.UserService;
@@ -64,20 +65,45 @@ public class SecurityController {
         user.setPassword(passwordEncoder.encode(signUpRequest.getPassword()));
         user.setEnabled(true); // For demo, enable immediately
         userService.save(user);
-        // tokenService.createVerifyToken(user);
+        var tokenDetails = tokenService.createVerifyToken(user);
+
+        // Send verification email
+        String verificationLink = "http://localhost:8080/auth/confirm?token=" + tokenDetails.getToken();
+        String subject = "Подтверждение email";
+        String text = "Пожалуйста, подтвердите ваш email, перейдя по ссылке: " + verificationLink;
+        // Assuming MailSenderService is available; for now, log it
+        log.info("Verification email to {}: {}", user.getEmail(), text);
 
         return ResponseEntity.ok(CustomApiResponse.successMessage("Регистрация успешна"));
     }
 
+    @GetMapping("/confirm")
+    public ResponseEntity<CustomApiResponse<String>> confirmRegistration(@RequestParam("token") String token) {
+        userService.confirmUser(token);
+        return ResponseEntity.ok(CustomApiResponse.successMessage("Email подтверждён"));
+    }
+
     @PostMapping("/reset-password")
     public ResponseEntity<CustomApiResponse<String>> resetPassword(@Valid @RequestBody PasswordResetDTO passwordResetDTO) {
-        // Logic to send reset email
+        if (!userService.existsByEmail(passwordResetDTO.getEmail())) {
+            return ResponseEntity.badRequest().body(CustomApiResponse.error("Email не найден"));
+        }
+
+        User user = userService.findByEmail(passwordResetDTO.getEmail());
+        var tokenDetails = tokenService.createResetToken(user);
+
+        // Send reset email
+        String resetLink = "http://localhost:8080/auth/confirm-reset?token=" + tokenDetails.getToken();
+        String subject = "Сброс пароля";
+        String text = "Для сброса пароля перейдите по ссылке: " + resetLink;
+        log.info("Reset email to {}: {}", user.getEmail(), text);
+
         return ResponseEntity.ok(CustomApiResponse.successMessage("Инструкции отправлены на email"));
     }
 
     @PostMapping("/confirm-reset")
     public ResponseEntity<CustomApiResponse<String>> confirmReset(@Valid @RequestBody PasswordResetRequest passwordResetRequest) {
-        // Logic to reset password
+        userService.resetPassword(passwordResetRequest.getToken(), passwordResetRequest.getPassword());
         return ResponseEntity.ok(CustomApiResponse.successMessage("Пароль изменён"));
     }
 }

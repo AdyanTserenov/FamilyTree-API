@@ -12,4 +12,8 @@ public class PasswordResetDTO {
     @NotBlank(message = "Email обязателен")
     @Email(message = "Неверный формат email")
     private String email;
+
+    public String getEmail() {
+        return email;
+    }
 }

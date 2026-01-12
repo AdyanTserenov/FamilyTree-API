@@ -16,4 +16,12 @@ public class PasswordResetRequest {
     @Schema(description = "Токен сброса пароля")
     @NotBlank(message = "Токен обязателен")
     private String token;
+
+    public String getPassword() {
+        return password;
+    }
+
+    public String getToken() {
+        return token;
+    }
 }

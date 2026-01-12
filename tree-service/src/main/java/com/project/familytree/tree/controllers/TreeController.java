@@ -45,6 +45,17 @@ public class TreeController {
         return ResponseEntity.ok(CustomApiResponse.successData(trees));
     }
 
+    @PostMapping
+    public ResponseEntity<CustomApiResponse<String>> createTree(
+            @Valid @RequestBody TreeRequest treeRequest,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        Long userId = userService.findIdByDetails(userDetails);
+        treeService.createTree(treeRequest.getName(), userId);
+        log.info("Created tree '{}' for user {}", treeRequest.getName(), userId);
+        return ResponseEntity.ok(CustomApiResponse.successMessage("Дерево создано"));
+    }
+
     @PostMapping("/{treeId}/invite")
     public ResponseEntity<CustomApiResponse<String>> inviteByEmail(
             @PathVariable Long treeId,
