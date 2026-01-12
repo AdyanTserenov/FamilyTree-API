@@ -43,6 +43,9 @@ public class UserService implements UserDetailsService {
     }
 
     public Long findIdByDetails(UserDetails userDetails) {
+        if (userDetails == null) {
+            throw new IllegalArgumentException("UserDetails cannot be null");
+        }
         User user = findByEmail(userDetails.getUsername());
         return user.getId();
     }

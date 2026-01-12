@@ -3,12 +3,18 @@ package com.project.familytree.tree.services;
 import com.project.familytree.auth.dto.UserDTO;
 import com.project.familytree.auth.services.MailSenderService;
 import com.project.familytree.auth.services.UserService;
+import com.project.familytree.tree.dto.PersonDTO;
+import com.project.familytree.tree.dto.PersonRelationshipRequest;
+import com.project.familytree.tree.dto.PersonRequest;
 import com.project.familytree.tree.dto.TreeDTO;
+import com.project.familytree.tree.impls.Gender;
 import com.project.familytree.tree.impls.TreeRole;
 import com.project.familytree.tree.models.Invitation;
+import com.project.familytree.tree.models.Person;
 import com.project.familytree.tree.models.Tree;
 import com.project.familytree.tree.models.TreeMembership;
 import com.project.familytree.tree.repositories.InvitationRepository;
+import com.project.familytree.tree.repositories.PersonRepository;
 import com.project.familytree.tree.repositories.TreeMembershipRepository;
 import com.project.familytree.tree.repositories.TreeRepository;
 import org.springframework.stereotype.Service;
@@ -26,13 +32,15 @@ public class TreeService {
     private final TreeMembershipRepository membershipRepository;
     private final MailSenderService mailSenderService;
     private final InvitationRepository invitationRepository;
+    private final PersonRepository personRepository;
 
-    public TreeService(UserService userService, TreeRepository treeRepository, TreeMembershipRepository membershipRepository, MailSenderService mailSenderService, InvitationRepository invitationRepository) {
+    public TreeService(UserService userService, TreeRepository treeRepository, TreeMembershipRepository membershipRepository, MailSenderService mailSenderService, InvitationRepository invitationRepository, PersonRepository personRepository) {
         this.userService = userService;
         this.treeRepository = treeRepository;
         this.membershipRepository = membershipRepository;
         this.mailSenderService = mailSenderService;
         this.invitationRepository = invitationRepository;
+        this.personRepository = personRepository;
     }
 
     @Transactional
@@ -153,5 +161,158 @@ public class TreeService {
         invitation.setAccepted(true);
 
         invitationRepository.save(invitation);
+    }
+
+    // Person management methods
+
+    @Transactional
+    public Person createPerson(Long treeId, PersonRequest request, Long userId) throws AccessDeniedException {
+        if (!canEdit(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на редактирование дерева");
+        }
+
+        Tree tree = getById(treeId);
+        Person person = new Person(tree, request.getFirstName(), request.getLastName(),
+                                 request.getMiddleName(), request.getGender());
+        person.setBirthDate(request.getBirthDate());
+        person.setDeathDate(request.getDeathDate());
+
+        return personRepository.save(person);
+    }
+
+    public List<PersonDTO> getPersons(Long treeId, Long userId) throws AccessDeniedException {
+        if (!canView(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на просмотр дерева");
+        }
+
+        List<Person> persons = personRepository.findByTreeIdOrderByLastNameAscFirstNameAsc(treeId);
+        return persons.stream()
+                .map(this::convertToDTO)
+                .toList();
+    }
+
+    public PersonDTO getPerson(Long treeId, Long personId, Long userId) throws AccessDeniedException {
+        if (!canView(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на просмотр дерева");
+        }
+
+        Person person = personRepository.findById(personId)
+                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+
+        if (!person.getTree().getId().equals(treeId)) {
+            throw new AccessDeniedException("Персона не принадлежит этому дереву");
+        }
+
+        return convertToDTO(person);
+    }
+
+    @Transactional
+    public Person updatePerson(Long treeId, Long personId, PersonRequest request, Long userId) throws AccessDeniedException {
+        if (!canEdit(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на редактирование дерева");
+        }
+
+        Person person = personRepository.findById(personId)
+                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+
+        if (!person.getTree().getId().equals(treeId)) {
+            throw new AccessDeniedException("Персона не принадлежит этому дереву");
+        }
+
+        person.setFirstName(request.getFirstName());
+        person.setLastName(request.getLastName());
+        person.setMiddleName(request.getMiddleName());
+        person.setBirthDate(request.getBirthDate());
+        person.setDeathDate(request.getDeathDate());
+        person.setGender(request.getGender());
+
+        return personRepository.save(person);
+    }
+
+    @Transactional
+    public void deletePerson(Long treeId, Long personId, Long userId) throws AccessDeniedException {
+        if (!canEdit(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на редактирование дерева");
+        }
+
+        Person person = personRepository.findById(personId)
+                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+
+        if (!person.getTree().getId().equals(treeId)) {
+            throw new AccessDeniedException("Персона не принадлежит этому дереву");
+        }
+
+        // Remove relationships
+        person.getParents().forEach(parent -> parent.removeChild(person));
+        person.getChildren().forEach(child -> child.removeParent(person));
+
+        personRepository.delete(person);
+    }
+
+    @Transactional
+    public void addRelationship(Long treeId, PersonRelationshipRequest request, Long userId) throws AccessDeniedException {
+        if (!canEdit(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на редактирование дерева");
+        }
+
+        Person parent = personRepository.findById(request.getParentId())
+                .orElseThrow(() -> new RuntimeException("Родитель не найден"));
+        Person child = personRepository.findById(request.getChildId())
+                .orElseThrow(() -> new RuntimeException("Ребенок не найден"));
+
+        if (!parent.getTree().getId().equals(treeId) || !child.getTree().getId().equals(treeId)) {
+            throw new AccessDeniedException("Персоны принадлежат разным деревьям");
+        }
+
+        parent.addChild(child);
+        personRepository.save(parent);
+        personRepository.save(child);
+    }
+
+    @Transactional
+    public void removeRelationship(Long treeId, PersonRelationshipRequest request, Long userId) throws AccessDeniedException {
+        if (!canEdit(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на редактирование дерева");
+        }
+
+        Person parent = personRepository.findById(request.getParentId())
+                .orElseThrow(() -> new RuntimeException("Родитель не найден"));
+        Person child = personRepository.findById(request.getChildId())
+                .orElseThrow(() -> new RuntimeException("Ребенок не найден"));
+
+        if (!parent.getTree().getId().equals(treeId) || !child.getTree().getId().equals(treeId)) {
+            throw new AccessDeniedException("Персоны принадлежат разным деревьям");
+        }
+
+        parent.removeChild(child);
+        personRepository.save(parent);
+        personRepository.save(child);
+    }
+
+    public List<PersonDTO> getTreeGraph(Long treeId, Long userId) throws AccessDeniedException {
+        if (!canView(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на просмотр дерева");
+        }
+
+        List<Person> persons = personRepository.findByTreeId(treeId);
+        return persons.stream()
+                .map(this::convertToDTO)
+                .toList();
+    }
+
+    public PersonDTO convertToDTO(Person person) {
+        return new PersonDTO(
+                person.getId(),
+                person.getTree().getId(),
+                person.getFirstName(),
+                person.getLastName(),
+                person.getMiddleName(),
+                person.getBirthDate(),
+                person.getDeathDate(),
+                person.getGender(),
+                person.getParents().stream().map(Person::getId).collect(java.util.stream.Collectors.toSet()),
+                person.getChildren().stream().map(Person::getId).collect(java.util.stream.Collectors.toSet()),
+                person.getFullName()
+        );
     }
 }

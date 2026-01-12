@@ -12,7 +12,7 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,9 +35,9 @@ public class TreeController {
     }
 
     @GetMapping
-    public ResponseEntity<CustomApiResponse<List<TreeDTO>>> getUserTrees(
-            @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<CustomApiResponse<List<TreeDTO>>> getUserTrees() {
 
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
         log.info("Getting trees for user {}", userId);
         List<TreeDTO> trees = treeService.getUserTrees(userId);
@@ -47,9 +47,9 @@ public class TreeController {
 
     @PostMapping
     public ResponseEntity<CustomApiResponse<String>> createTree(
-            @Valid @RequestBody TreeRequest treeRequest,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @Valid @RequestBody TreeRequest treeRequest) {
 
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
         treeService.createTree(treeRequest.getName(), userId);
         log.info("Created tree '{}' for user {}", treeRequest.getName(), userId);
@@ -59,9 +59,9 @@ public class TreeController {
     @PostMapping("/{treeId}/invite")
     public ResponseEntity<CustomApiResponse<String>> inviteByEmail(
             @PathVariable Long treeId,
-            @Valid @RequestBody InviteRequest inviteRequest,
-            @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
+            @Valid @RequestBody InviteRequest inviteRequest) throws AccessDeniedException {
 
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long inviterId = userService.findIdByDetails(userDetails);
         treeService.sendInviteByEmail(treeId, inviteRequest.email(), inviteRequest.role(), inviterId);
 
@@ -72,9 +72,9 @@ public class TreeController {
     @PostMapping("/{treeId}/invite-link")
     public ResponseEntity<CustomApiResponse<Map<String, String>>> generateInviteLink(
             @PathVariable Long treeId,
-            @Valid @RequestBody InviteRequest inviteRequest,
-            @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
+            @Valid @RequestBody InviteRequest inviteRequest) throws AccessDeniedException {
 
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long inviterId = userService.findIdByDetails(userDetails);
         String token = treeService.createInviteToken(treeId, inviteRequest.email(), inviteRequest.role(), inviterId);
         String inviteLink = "https://familytree.example.com/invite/" + token;
@@ -85,9 +85,9 @@ public class TreeController {
 
     @GetMapping("/invite/{token}")
     public ResponseEntity<CustomApiResponse<String>> acceptInvite(
-            @PathVariable String token,
-            @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
+            @PathVariable String token) throws AccessDeniedException {
 
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
         treeService.acceptInvitation(token, userId);
 
@@ -96,9 +96,9 @@ public class TreeController {
 
     @GetMapping("/{treeId}/members")
     public ResponseEntity<CustomApiResponse<List<UserDTO>>> getMembers(
-            @PathVariable Long treeId,
-            @AuthenticationPrincipal UserDetails userDetails) throws AccessDeniedException {
+            @PathVariable Long treeId) throws AccessDeniedException {
 
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
         if (!treeService.canView(treeId, userId)) {
             throw new AccessDeniedException("Нет прав на просмотр участников");
