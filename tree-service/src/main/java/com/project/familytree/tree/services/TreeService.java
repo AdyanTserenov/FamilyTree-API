@@ -6,15 +6,19 @@ import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.PersonDTO;
 import com.project.familytree.tree.dto.PersonRelationshipRequest;
 import com.project.familytree.tree.dto.PersonRequest;
+import com.project.familytree.tree.dto.RelationshipDTO;
 import com.project.familytree.tree.dto.TreeDTO;
-import com.project.familytree.tree.impls.Gender;
+import com.project.familytree.tree.impls.RelationshipType;
 import com.project.familytree.tree.impls.TreeRole;
 import com.project.familytree.tree.models.Invitation;
 import com.project.familytree.tree.models.Person;
+import com.project.familytree.tree.models.Relationship;
 import com.project.familytree.tree.models.Tree;
 import com.project.familytree.tree.models.TreeMembership;
 import com.project.familytree.tree.repositories.InvitationRepository;
+import com.project.familytree.tree.repositories.MediaFileRepository;
 import com.project.familytree.tree.repositories.PersonRepository;
+import com.project.familytree.tree.repositories.RelationshipRepository;
 import com.project.familytree.tree.repositories.TreeMembershipRepository;
 import com.project.familytree.tree.repositories.TreeRepository;
 import org.springframework.stereotype.Service;
@@ -27,21 +31,35 @@ import java.util.List;
 
 @Service
 public class TreeService {
+
     private final UserService userService;
     private final TreeRepository treeRepository;
     private final TreeMembershipRepository membershipRepository;
     private final MailSenderService mailSenderService;
     private final InvitationRepository invitationRepository;
     private final PersonRepository personRepository;
+    private final RelationshipRepository relationshipRepository;
+    private final MediaFileRepository mediaFileRepository;
 
-    public TreeService(UserService userService, TreeRepository treeRepository, TreeMembershipRepository membershipRepository, MailSenderService mailSenderService, InvitationRepository invitationRepository, PersonRepository personRepository) {
+    public TreeService(UserService userService,
+                       TreeRepository treeRepository,
+                       TreeMembershipRepository membershipRepository,
+                       MailSenderService mailSenderService,
+                       InvitationRepository invitationRepository,
+                       PersonRepository personRepository,
+                       RelationshipRepository relationshipRepository,
+                       MediaFileRepository mediaFileRepository) {
         this.userService = userService;
         this.treeRepository = treeRepository;
         this.membershipRepository = membershipRepository;
         this.mailSenderService = mailSenderService;
         this.invitationRepository = invitationRepository;
         this.personRepository = personRepository;
+        this.relationshipRepository = relationshipRepository;
+        this.mediaFileRepository = mediaFileRepository;
     }
+
+    // ─── Tree management ────────────────────────────────────────────────────────
 
     @Transactional
     public void createTree(String treeName, Long ownerId) {
@@ -90,7 +108,6 @@ public class TreeService {
 
     public List<TreeDTO> getUserTrees(Long userId) {
         List<TreeMembership> memberships = membershipRepository.findByUserId(userId);
-
         return memberships.stream()
                 .map(tm -> {
                     Tree t = tm.getTree();
@@ -101,7 +118,6 @@ public class TreeService {
 
     public List<UserDTO> getMembers(Long treeId) {
         List<TreeMembership> memberships = membershipRepository.findByTreeId(treeId);
-
         return memberships.stream()
                 .map(tm -> {
                     com.project.familytree.auth.models.User u = tm.getUser();
@@ -109,6 +125,8 @@ public class TreeService {
                 })
                 .toList();
     }
+
+    // ─── Invitations ─────────────────────────────────────────────────────────────
 
     public String createInviteToken(Long treeId, String email, TreeRole role, Long inviterId) throws AccessDeniedException {
         if (!isOwner(treeId, inviterId)) {
@@ -120,7 +138,6 @@ public class TreeService {
         invitation.setEmail(email);
         invitation.setRole(role);
         invitation.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
-
         invitation = invitationRepository.save(invitation);
 
         return invitation.getToken();
@@ -134,11 +151,7 @@ public class TreeService {
         String token = createInviteToken(treeId, email, role, inviterId);
         String link = buildInviteLink(token);
 
-        com.project.familytree.auth.models.User inviter = userService.findById(inviterId);
         String treeName = getById(treeId).getName();
-
-        // Assuming MailSenderService has sendInvitationEmail, but in starter it's sendEmail. Need to add or adjust.
-        // For now, use sendEmail with formatted text.
         String subject = "Приглашение в семейное дерево " + treeName;
         String text = "Вы приглашены в дерево '" + treeName + "' с ролью " + role + ". Перейдите по ссылке: " + link;
         mailSenderService.sendEmail(email, subject, text);
@@ -159,11 +172,10 @@ public class TreeService {
 
         addMember(invitation.getTree().getId(), currentUserId, invitation.getRole());
         invitation.setAccepted(true);
-
         invitationRepository.save(invitation);
     }
 
-    // Person management methods
+    // ─── Person management ───────────────────────────────────────────────────────
 
     @Transactional
     public Person createPerson(Long treeId, PersonRequest request, Long userId) throws AccessDeniedException {
@@ -173,9 +185,12 @@ public class TreeService {
 
         Tree tree = getById(treeId);
         Person person = new Person(tree, request.getFirstName(), request.getLastName(),
-                                 request.getMiddleName(), request.getGender());
+                request.getMiddleName(), request.getGender());
         person.setBirthDate(request.getBirthDate());
         person.setDeathDate(request.getDeathDate());
+        person.setBirthPlace(request.getBirthPlace());
+        person.setDeathPlace(request.getDeathPlace());
+        person.setBiography(request.getBiography());
 
         return personRepository.save(person);
     }
@@ -187,7 +202,7 @@ public class TreeService {
 
         List<Person> persons = personRepository.findByTreeIdOrderByLastNameAscFirstNameAsc(treeId);
         return persons.stream()
-                .map(this::convertToDTO)
+                .map(p -> convertToDTO(p, treeId))
                 .toList();
     }
 
@@ -203,7 +218,7 @@ public class TreeService {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
         }
 
-        return convertToDTO(person);
+        return convertToDTO(person, treeId);
     }
 
     @Transactional
@@ -224,6 +239,9 @@ public class TreeService {
         person.setMiddleName(request.getMiddleName());
         person.setBirthDate(request.getBirthDate());
         person.setDeathDate(request.getDeathDate());
+        person.setBirthPlace(request.getBirthPlace());
+        person.setDeathPlace(request.getDeathPlace());
+        person.setBiography(request.getBiography());
         person.setGender(request.getGender());
 
         return personRepository.save(person);
@@ -242,12 +260,17 @@ public class TreeService {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
         }
 
-        // Remove relationships
-        person.getParents().forEach(parent -> parent.removeChild(person));
-        person.getChildren().forEach(child -> child.removeParent(person));
+        // Удаляем все связи персоны
+        List<Relationship> relationships = relationshipRepository.findByTreeIdAndPersonId(treeId, personId);
+        relationshipRepository.deleteAll(relationships);
+
+        // Удаляем все медиафайлы персоны
+        mediaFileRepository.deleteByPersonId(personId);
 
         personRepository.delete(person);
     }
+
+    // ─── Relationship management ─────────────────────────────────────────────────
 
     @Transactional
     public void addRelationship(Long treeId, PersonRelationshipRequest request, Long userId) throws AccessDeniedException {
@@ -255,18 +278,26 @@ public class TreeService {
             throw new AccessDeniedException("Нет прав на редактирование дерева");
         }
 
-        Person parent = personRepository.findById(request.getParentId())
-                .orElseThrow(() -> new RuntimeException("Родитель не найден"));
-        Person child = personRepository.findById(request.getChildId())
-                .orElseThrow(() -> new RuntimeException("Ребенок не найден"));
+        Person person1 = personRepository.findById(request.getPerson1Id())
+                .orElseThrow(() -> new RuntimeException("Персона 1 не найдена"));
+        Person person2 = personRepository.findById(request.getPerson2Id())
+                .orElseThrow(() -> new RuntimeException("Персона 2 не найдена"));
 
-        if (!parent.getTree().getId().equals(treeId) || !child.getTree().getId().equals(treeId)) {
+        if (!person1.getTree().getId().equals(treeId) || !person2.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Персоны принадлежат разным деревьям");
         }
 
-        parent.addChild(child);
-        personRepository.save(parent);
-        personRepository.save(child);
+        // Проверяем, что такая связь ещё не существует
+        boolean exists = relationshipRepository
+                .findByTreeIdAndPersonsAndType(treeId, request.getPerson1Id(), request.getPerson2Id(), request.getType())
+                .isPresent();
+        if (exists) {
+            throw new RuntimeException("Такая связь уже существует");
+        }
+
+        Tree tree = getById(treeId);
+        Relationship relationship = new Relationship(tree, person1, person2, request.getType());
+        relationshipRepository.save(relationship);
     }
 
     @Transactional
@@ -275,18 +306,11 @@ public class TreeService {
             throw new AccessDeniedException("Нет прав на редактирование дерева");
         }
 
-        Person parent = personRepository.findById(request.getParentId())
-                .orElseThrow(() -> new RuntimeException("Родитель не найден"));
-        Person child = personRepository.findById(request.getChildId())
-                .orElseThrow(() -> new RuntimeException("Ребенок не найден"));
+        Relationship relationship = relationshipRepository
+                .findByTreeIdAndPersonsAndType(treeId, request.getPerson1Id(), request.getPerson2Id(), request.getType())
+                .orElseThrow(() -> new RuntimeException("Связь не найдена"));
 
-        if (!parent.getTree().getId().equals(treeId) || !child.getTree().getId().equals(treeId)) {
-            throw new AccessDeniedException("Персоны принадлежат разным деревьям");
-        }
-
-        parent.removeChild(child);
-        personRepository.save(parent);
-        personRepository.save(child);
+        relationshipRepository.delete(relationship);
     }
 
     public List<PersonDTO> getTreeGraph(Long treeId, Long userId) throws AccessDeniedException {
@@ -296,11 +320,23 @@ public class TreeService {
 
         List<Person> persons = personRepository.findByTreeId(treeId);
         return persons.stream()
-                .map(this::convertToDTO)
+                .map(p -> convertToDTO(p, treeId))
                 .toList();
     }
 
+    // ─── DTO conversion ──────────────────────────────────────────────────────────
+
     public PersonDTO convertToDTO(Person person) {
+        return convertToDTO(person, person.getTree().getId());
+    }
+
+    public PersonDTO convertToDTO(Person person, Long treeId) {
+        List<Relationship> relationships = relationshipRepository.findByTreeIdAndPersonId(treeId, person.getId());
+
+        List<RelationshipDTO> relationshipDTOs = relationships.stream()
+                .map(r -> new RelationshipDTO(r.getId(), r.getPerson1().getId(), r.getPerson2().getId(), r.getType()))
+                .toList();
+
         return new PersonDTO(
                 person.getId(),
                 person.getTree().getId(),
@@ -309,9 +345,11 @@ public class TreeService {
                 person.getMiddleName(),
                 person.getBirthDate(),
                 person.getDeathDate(),
+                person.getBirthPlace(),
+                person.getDeathPlace(),
+                person.getBiography(),
                 person.getGender(),
-                person.getParents().stream().map(Person::getId).collect(java.util.stream.Collectors.toSet()),
-                person.getChildren().stream().map(Person::getId).collect(java.util.stream.Collectors.toSet()),
+                relationshipDTOs,
                 person.getFullName()
         );
     }

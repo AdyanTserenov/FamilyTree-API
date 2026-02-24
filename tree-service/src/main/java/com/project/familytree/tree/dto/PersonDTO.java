@@ -4,9 +4,10 @@ import com.project.familytree.tree.impls.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
-import java.util.Set;
+import java.util.List;
 
 public class PersonDTO {
+
     @Schema(description = "ID персоны")
     private Long id;
 
@@ -28,14 +29,20 @@ public class PersonDTO {
     @Schema(description = "Дата смерти")
     private LocalDate deathDate;
 
+    @Schema(description = "Место рождения")
+    private String birthPlace;
+
+    @Schema(description = "Место смерти")
+    private String deathPlace;
+
+    @Schema(description = "Биография")
+    private String biography;
+
     @Schema(description = "Пол")
     private Gender gender;
 
-    @Schema(description = "ID родителей")
-    private Set<Long> parentIds;
-
-    @Schema(description = "ID детей")
-    private Set<Long> childIds;
+    @Schema(description = "Связи персоны (PARENT_CHILD и PARTNERSHIP)")
+    private List<RelationshipDTO> relationships;
 
     @Schema(description = "Полное имя")
     private String fullName;
@@ -44,8 +51,9 @@ public class PersonDTO {
     }
 
     public PersonDTO(Long id, Long treeId, String firstName, String lastName, String middleName,
-                    LocalDate birthDate, LocalDate deathDate, Gender gender,
-                    Set<Long> parentIds, Set<Long> childIds, String fullName) {
+                     LocalDate birthDate, LocalDate deathDate,
+                     String birthPlace, String deathPlace, String biography,
+                     Gender gender, List<RelationshipDTO> relationships, String fullName) {
         this.id = id;
         this.treeId = treeId;
         this.firstName = firstName;
@@ -53,13 +61,14 @@ public class PersonDTO {
         this.middleName = middleName;
         this.birthDate = birthDate;
         this.deathDate = deathDate;
+        this.birthPlace = birthPlace;
+        this.deathPlace = deathPlace;
+        this.biography = biography;
         this.gender = gender;
-        this.parentIds = parentIds;
-        this.childIds = childIds;
+        this.relationships = relationships;
         this.fullName = fullName;
     }
 
-    // Getters and setters
     public Long getId() {
         return id;
     }
@@ -116,6 +125,30 @@ public class PersonDTO {
         this.deathDate = deathDate;
     }
 
+    public String getBirthPlace() {
+        return birthPlace;
+    }
+
+    public void setBirthPlace(String birthPlace) {
+        this.birthPlace = birthPlace;
+    }
+
+    public String getDeathPlace() {
+        return deathPlace;
+    }
+
+    public void setDeathPlace(String deathPlace) {
+        this.deathPlace = deathPlace;
+    }
+
+    public String getBiography() {
+        return biography;
+    }
+
+    public void setBiography(String biography) {
+        this.biography = biography;
+    }
+
     public Gender getGender() {
         return gender;
     }
@@ -124,20 +157,12 @@ public class PersonDTO {
         this.gender = gender;
     }
 
-    public Set<Long> getParentIds() {
-        return parentIds;
+    public List<RelationshipDTO> getRelationships() {
+        return relationships;
     }
 
-    public void setParentIds(Set<Long> parentIds) {
-        this.parentIds = parentIds;
-    }
-
-    public Set<Long> getChildIds() {
-        return childIds;
-    }
-
-    public void setChildIds(Set<Long> childIds) {
-        this.childIds = childIds;
+    public void setRelationships(List<RelationshipDTO> relationships) {
+        this.relationships = relationships;
     }
 
     public String getFullName() {

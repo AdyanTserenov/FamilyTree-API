@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
 public class PersonRequest {
+
     @Schema(description = "Имя", example = "Иван")
     @NotBlank(message = "Имя обязательно")
     private String firstName;
@@ -25,6 +26,15 @@ public class PersonRequest {
     @Schema(description = "Дата смерти", example = "2020-12-31")
     private LocalDate deathDate;
 
+    @Schema(description = "Место рождения", example = "Москва")
+    private String birthPlace;
+
+    @Schema(description = "Место смерти", example = "Санкт-Петербург")
+    private String deathPlace;
+
+    @Schema(description = "Биография")
+    private String biography;
+
     @Schema(description = "Пол")
     @NotNull(message = "Пол обязателен")
     private Gender gender;
@@ -33,16 +43,20 @@ public class PersonRequest {
     }
 
     public PersonRequest(String firstName, String lastName, String middleName,
-                        LocalDate birthDate, LocalDate deathDate, Gender gender) {
+                         LocalDate birthDate, LocalDate deathDate,
+                         String birthPlace, String deathPlace, String biography,
+                         Gender gender) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.middleName = middleName;
         this.birthDate = birthDate;
         this.deathDate = deathDate;
+        this.birthPlace = birthPlace;
+        this.deathPlace = deathPlace;
+        this.biography = biography;
         this.gender = gender;
     }
 
-    // Getters and setters
     public String getFirstName() {
         return firstName;
     }
@@ -81,6 +95,30 @@ public class PersonRequest {
 
     public void setDeathDate(LocalDate deathDate) {
         this.deathDate = deathDate;
+    }
+
+    public String getBirthPlace() {
+        return birthPlace;
+    }
+
+    public void setBirthPlace(String birthPlace) {
+        this.birthPlace = birthPlace;
+    }
+
+    public String getDeathPlace() {
+        return deathPlace;
+    }
+
+    public void setDeathPlace(String deathPlace) {
+        this.deathPlace = deathPlace;
+    }
+
+    public String getBiography() {
+        return biography;
+    }
+
+    public void setBiography(String biography) {
+        this.biography = biography;
     }
 
     public Gender getGender() {

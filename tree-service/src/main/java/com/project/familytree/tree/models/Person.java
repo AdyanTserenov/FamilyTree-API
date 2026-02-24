@@ -9,12 +9,11 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Table(name = "persons")
 public class Person {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -40,20 +39,19 @@ public class Person {
     @Column(name = "death_date")
     private LocalDate deathDate;
 
+    @Column(name = "birth_place")
+    private String birthPlace;
+
+    @Column(name = "death_place")
+    private String deathPlace;
+
+    @Column(name = "biography", columnDefinition = "TEXT")
+    private String biography;
+
+    @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 10)
     private Gender gender;
-
-    @ManyToMany
-    @JoinTable(
-        name = "person_relationships",
-        joinColumns = @JoinColumn(name = "child_id"),
-        inverseJoinColumns = @JoinColumn(name = "parent_id")
-    )
-    private Set<Person> parents = new HashSet<>();
-
-    @ManyToMany(mappedBy = "parents")
-    private Set<Person> children = new HashSet<>();
 
     @CreationTimestamp
     @Column(name = "created_at")
@@ -74,7 +72,6 @@ public class Person {
         this.gender = gender;
     }
 
-    // Getters and setters
     public Long getId() {
         return id;
     }
@@ -131,28 +128,36 @@ public class Person {
         this.deathDate = deathDate;
     }
 
+    public String getBirthPlace() {
+        return birthPlace;
+    }
+
+    public void setBirthPlace(String birthPlace) {
+        this.birthPlace = birthPlace;
+    }
+
+    public String getDeathPlace() {
+        return deathPlace;
+    }
+
+    public void setDeathPlace(String deathPlace) {
+        this.deathPlace = deathPlace;
+    }
+
+    public String getBiography() {
+        return biography;
+    }
+
+    public void setBiography(String biography) {
+        this.biography = biography;
+    }
+
     public Gender getGender() {
         return gender;
     }
 
     public void setGender(Gender gender) {
         this.gender = gender;
-    }
-
-    public Set<Person> getParents() {
-        return parents;
-    }
-
-    public void setParents(Set<Person> parents) {
-        this.parents = parents;
-    }
-
-    public Set<Person> getChildren() {
-        return children;
-    }
-
-    public void setChildren(Set<Person> children) {
-        this.children = children;
     }
 
     public Instant getCreatedAt() {
@@ -169,27 +174,6 @@ public class Person {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    // Helper methods
-    public void addParent(Person parent) {
-        this.parents.add(parent);
-        parent.getChildren().add(this);
-    }
-
-    public void removeParent(Person parent) {
-        this.parents.remove(parent);
-        parent.getChildren().remove(this);
-    }
-
-    public void addChild(Person child) {
-        this.children.add(child);
-        child.getParents().add(this);
-    }
-
-    public void removeChild(Person child) {
-        this.children.remove(child);
-        child.getParents().remove(this);
     }
 
     public String getFullName() {

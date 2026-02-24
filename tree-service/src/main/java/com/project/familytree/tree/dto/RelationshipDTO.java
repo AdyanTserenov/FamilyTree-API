@@ -2,29 +2,38 @@ package com.project.familytree.tree.dto;
 
 import com.project.familytree.tree.impls.RelationshipType;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
 
-public class PersonRelationshipRequest {
+@Schema(description = "Связь между персонами")
+public class RelationshipDTO {
+
+    @Schema(description = "ID связи")
+    private Long id;
 
     @Schema(description = "ID первой персоны (для PARENT_CHILD — родитель, для PARTNERSHIP — первый партнёр)")
-    @NotNull(message = "ID первой персоны обязателен")
     private Long person1Id;
 
     @Schema(description = "ID второй персоны (для PARENT_CHILD — ребёнок, для PARTNERSHIP — второй партнёр)")
-    @NotNull(message = "ID второй персоны обязателен")
     private Long person2Id;
 
     @Schema(description = "Тип связи: PARENT_CHILD или PARTNERSHIP")
-    @NotNull(message = "Тип связи обязателен")
     private RelationshipType type;
 
-    public PersonRelationshipRequest() {
+    public RelationshipDTO() {
     }
 
-    public PersonRelationshipRequest(Long person1Id, Long person2Id, RelationshipType type) {
+    public RelationshipDTO(Long id, Long person1Id, Long person2Id, RelationshipType type) {
+        this.id = id;
         this.person1Id = person1Id;
         this.person2Id = person2Id;
         this.type = type;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public Long getPerson1Id() {
@@ -49,14 +58,5 @@ public class PersonRelationshipRequest {
 
     public void setType(RelationshipType type) {
         this.type = type;
-    }
-
-    // Backward-compat aliases for PARENT_CHILD usage
-    public Long getParentId() {
-        return person1Id;
-    }
-
-    public Long getChildId() {
-        return person2Id;
     }
 }
