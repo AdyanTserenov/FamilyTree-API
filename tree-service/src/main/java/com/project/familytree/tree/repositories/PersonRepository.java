@@ -13,9 +13,15 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
 
     List<Person> findByTreeId(Long treeId);
 
-    @Query("SELECT p FROM Person p WHERE p.tree.id = :treeId AND p.parents IS EMPTY")
-    List<Person> findRootPersons(@Param("treeId") Long treeId);
-
     @Query("SELECT p FROM Person p WHERE p.tree.id = :treeId ORDER BY p.lastName, p.firstName")
     List<Person> findByTreeIdOrderByLastNameAscFirstNameAsc(@Param("treeId") Long treeId);
+
+    /**
+     * Поиск персон по имени, фамилии или отчеству (регистронезависимый)
+     */
+    @Query("SELECT p FROM Person p WHERE p.tree.id = :treeId AND (" +
+           "LOWER(p.firstName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           "LOWER(p.lastName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
+           "LOWER(p.middleName) LIKE LOWER(CONCAT('%', :q, '%')))")
+    List<Person> searchByName(@Param("treeId") Long treeId, @Param("q") String q);
 }

@@ -110,3 +110,36 @@ CREATE TABLE IF NOT EXISTS media_files (
 
 CREATE INDEX IF NOT EXISTS idx_media_files_tree_id   ON media_files(tree_id);
 CREATE INDEX IF NOT EXISTS idx_media_files_person_id ON media_files(person_id);
+
+-- Avatar URL for persons (added in v2)
+ALTER TABLE persons ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512);
+
+-- Comments on persons (threaded, soft-delete)
+CREATE TABLE IF NOT EXISTS comments (
+    id                BIGSERIAL PRIMARY KEY,
+    person_id         BIGINT  NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+    user_id           BIGINT  NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
+    parent_comment_id BIGINT  REFERENCES comments(id) ON DELETE SET NULL,
+    content           TEXT    NOT NULL,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_deleted        BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_person_id         ON comments(person_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parent_comment_id ON comments(parent_comment_id);
+CREATE INDEX IF NOT EXISTS idx_comments_user_id           ON comments(user_id);
+
+-- Notifications for users
+CREATE TABLE IF NOT EXISTS notifications (
+    id                BIGSERIAL PRIMARY KEY,
+    user_id           BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    notification_type VARCHAR(30)  NOT NULL,
+    content           TEXT         NOT NULL,
+    link              VARCHAR(512),
+    is_read           BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(user_id, is_read);

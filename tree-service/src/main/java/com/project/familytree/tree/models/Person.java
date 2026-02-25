@@ -48,6 +48,9 @@ public class Person {
     @Column(name = "biography", columnDefinition = "TEXT")
     private String biography;
 
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -150,6 +153,14 @@ public class Person {
 
     public void setBiography(String biography) {
         this.biography = biography;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     public Gender getGender() {

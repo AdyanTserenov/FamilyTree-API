@@ -21,16 +21,27 @@ import com.project.familytree.tree.repositories.PersonRepository;
 import com.project.familytree.tree.repositories.RelationshipRepository;
 import com.project.familytree.tree.repositories.TreeMembershipRepository;
 import com.project.familytree.tree.repositories.TreeRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.nio.file.AccessDeniedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class TreeService {
+
+    @Value("${media.upload.dir:./uploads}")
+    private String uploadDir;
 
     private final UserService userService;
     private final TreeRepository treeRepository;
@@ -80,6 +91,26 @@ public class TreeService {
     }
 
     @Transactional
+    public TreeDTO updateTree(Long treeId, String newName, Long userId) throws AccessDeniedException {
+        if (!isOwner(treeId, userId)) {
+            throw new AccessDeniedException("Только владелец может изменять дерево");
+        }
+        Tree tree = getById(treeId);
+        tree.setName(newName);
+        tree = treeRepository.save(tree);
+        return new TreeDTO(tree.getId(), tree.getName(), tree.getCreatedAt());
+    }
+
+    @Transactional
+    public void deleteTree(Long treeId, Long userId) throws AccessDeniedException {
+        if (!isOwner(treeId, userId)) {
+            throw new AccessDeniedException("Только владелец может удалять дерево");
+        }
+        Tree tree = getById(treeId);
+        treeRepository.delete(tree);
+    }
+
+    @Transactional
     public void addMember(Long treeId, Long userId, TreeRole role) {
         TreeMembership treeMembership = new TreeMembership();
         treeMembership.setTree(getById(treeId));
@@ -94,10 +125,12 @@ public class TreeService {
                 .orElse(false);
     }
 
+    // VIEWER, EDITOR и OWNER могут просматривать
     public boolean canView(Long treeId, Long userId) {
-        return hasRole(treeId, userId, TreeRole.VIEWER) || isOwner(treeId, userId);
+        return hasRole(treeId, userId, TreeRole.VIEWER);
     }
 
+    // EDITOR и OWNER могут редактировать (OWNER.ordinal >= EDITOR.ordinal)
     public boolean canEdit(Long treeId, Long userId) {
         return hasRole(treeId, userId, TreeRole.EDITOR);
     }
@@ -201,6 +234,16 @@ public class TreeService {
         }
 
         List<Person> persons = personRepository.findByTreeIdOrderByLastNameAscFirstNameAsc(treeId);
+        return persons.stream()
+                .map(p -> convertToDTO(p, treeId))
+                .toList();
+    }
+
+    public List<PersonDTO> searchPersons(Long treeId, String query, Long userId) throws AccessDeniedException {
+        if (!canView(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на просмотр дерева");
+        }
+        List<Person> persons = personRepository.searchByName(treeId, query);
         return persons.stream()
                 .map(p -> convertToDTO(p, treeId))
                 .toList();
@@ -324,6 +367,39 @@ public class TreeService {
                 .toList();
     }
 
+    // ─── Avatar upload ────────────────────────────────────────────────────────────
+
+    @Transactional
+    public PersonDTO uploadAvatar(Long treeId, Long personId, MultipartFile file,
+                                  Long userId) throws AccessDeniedException, IOException {
+        if (!canEdit(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на редактирование дерева");
+        }
+
+        Person person = personRepository.findById(personId)
+                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+
+        if (!person.getTree().getId().equals(treeId)) {
+            throw new AccessDeniedException("Персона не принадлежит этому дереву");
+        }
+
+        // Сохраняем файл аватара в директорию uploads/avatars/{personId}/
+        Path avatarDir = Paths.get(uploadDir, "avatars", personId.toString());
+        Files.createDirectories(avatarDir);
+
+        String originalFilename = file.getOriginalFilename();
+        String extension = (originalFilename != null && originalFilename.contains("."))
+                ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                : ".jpg";
+        String storedFileName = UUID.randomUUID() + extension;
+        Path targetPath = avatarDir.resolve(storedFileName);
+        Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+
+        person.setAvatarUrl("/uploads/avatars/" + personId + "/" + storedFileName);
+        person = personRepository.save(person);
+        return convertToDTO(person, treeId);
+    }
+
     // ─── DTO conversion ──────────────────────────────────────────────────────────
 
     public PersonDTO convertToDTO(Person person) {
@@ -348,6 +424,7 @@ public class TreeService {
                 person.getBirthPlace(),
                 person.getDeathPlace(),
                 person.getBiography(),
+                person.getAvatarUrl(),
                 person.getGender(),
                 relationshipDTOs,
                 person.getFullName()

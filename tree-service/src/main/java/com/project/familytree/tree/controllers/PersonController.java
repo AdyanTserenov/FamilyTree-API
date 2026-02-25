@@ -11,11 +11,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.util.List;
 
@@ -166,5 +169,38 @@ public class PersonController {
 
         List<PersonDTO> graph = treeService.getTreeGraph(treeId, userId);
         return ResponseEntity.ok(CustomApiResponse.successData(graph));
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Поиск персон по имени",
+               description = "Ищет персон в дереве по имени, фамилии или отчеству (регистронезависимо). Требует роль VIEWER или выше.")
+    public ResponseEntity<CustomApiResponse<List<PersonDTO>>> searchPersons(
+            @PathVariable Long treeId,
+            @RequestParam("q") String query) throws AccessDeniedException {
+
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        log.info("Searching persons in tree {} with query '{}' by user {}", treeId, query, userId);
+
+        List<PersonDTO> results = treeService.searchPersons(treeId, query, userId);
+        log.info("Found {} persons matching '{}'", results.size(), query);
+        return ResponseEntity.ok(CustomApiResponse.successData(results));
+    }
+
+    @PostMapping(value = "/{personId}/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Загрузить аватар персоны",
+               description = "Загружает изображение и устанавливает его как аватар персоны. Требует роль EDITOR или OWNER.")
+    public ResponseEntity<CustomApiResponse<PersonDTO>> uploadAvatar(
+            @PathVariable Long treeId,
+            @PathVariable Long personId,
+            @RequestParam("file") MultipartFile file) throws AccessDeniedException, IOException {
+
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        log.info("Uploading avatar for person {} in tree {} by user {}", personId, treeId, userId);
+
+        PersonDTO personDTO = treeService.uploadAvatar(treeId, personId, file, userId);
+        log.info("Avatar uploaded for person {} in tree {}", personId, treeId);
+        return ResponseEntity.ok(CustomApiResponse.successData(personDTO));
     }
 }

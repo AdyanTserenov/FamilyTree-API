@@ -38,6 +38,9 @@ public class PersonDTO {
     @Schema(description = "Биография")
     private String biography;
 
+    @Schema(description = "URL аватара персоны")
+    private String avatarUrl;
+
     @Schema(description = "Пол")
     private Gender gender;
 
@@ -52,7 +55,7 @@ public class PersonDTO {
 
     public PersonDTO(Long id, Long treeId, String firstName, String lastName, String middleName,
                      LocalDate birthDate, LocalDate deathDate,
-                     String birthPlace, String deathPlace, String biography,
+                     String birthPlace, String deathPlace, String biography, String avatarUrl,
                      Gender gender, List<RelationshipDTO> relationships, String fullName) {
         this.id = id;
         this.treeId = treeId;
@@ -64,6 +67,7 @@ public class PersonDTO {
         this.birthPlace = birthPlace;
         this.deathPlace = deathPlace;
         this.biography = biography;
+        this.avatarUrl = avatarUrl;
         this.gender = gender;
         this.relationships = relationships;
         this.fullName = fullName;
@@ -147,6 +151,14 @@ public class PersonDTO {
 
     public void setBiography(String biography) {
         this.biography = biography;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     public Gender getGender() {
