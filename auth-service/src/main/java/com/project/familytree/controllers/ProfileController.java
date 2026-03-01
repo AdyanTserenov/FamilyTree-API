@@ -29,7 +29,7 @@ public class ProfileController {
     private final JwtCore jwtCore;
     private final UserService userService;
 
-    @GetMapping("/me")
+    @GetMapping
     @Operation(
             summary = "Получить информацию о себе по JWT",
             description = "Возвращает профиль пользователя в стандартизированной обёртке ApiResponse",
@@ -80,10 +80,13 @@ public class ProfileController {
             User user = userService.findByEmail(email);
 
             ProfileResponse profileResponse = new ProfileResponse(
+                    user.getId(),
                     user.getFirstName(),
                     user.getLastName(),
                     user.getMiddleName(),
-                    user.getEmail()
+                    user.getEmail(),
+                    user.isEnabled(),
+                    user.getCreatedAt()
             );
             return ResponseEntity.ok(CustomApiResponse.success(profileResponse));
     }

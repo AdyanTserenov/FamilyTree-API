@@ -12,23 +12,27 @@ import com.project.familytree.tree.repositories.PersonRepository;
 import com.project.familytree.tree.repositories.TreeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.AccessDeniedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Сервис управления медиафайлами.
+ * Файлы хранятся в Yandex Object Storage (S3-совместимый).
+ * <p>
+ * Структура ключей в бакете:
+ *   trees/{treeId}/media/{uuid}.ext   — медиафайлы персон
+ *   trees/{treeId}/avatars/{uuid}.ext — аватары персон
+ */
 @Service
 public class MediaFileService {
 
@@ -39,20 +43,20 @@ public class MediaFileService {
     private final TreeRepository treeRepository;
     private final UserService userService;
     private final TreeService treeService;
-
-    @Value("${media.upload.dir:./uploads}")
-    private String uploadDir;
+    private final S3Service s3Service;
 
     public MediaFileService(MediaFileRepository mediaFileRepository,
                             PersonRepository personRepository,
                             TreeRepository treeRepository,
                             UserService userService,
-                            TreeService treeService) {
+                            TreeService treeService,
+                            S3Service s3Service) {
         this.mediaFileRepository = mediaFileRepository;
         this.personRepository = personRepository;
         this.treeRepository = treeRepository;
         this.userService = userService;
         this.treeService = treeService;
+        this.s3Service = s3Service;
     }
 
     @Transactional
@@ -77,27 +81,23 @@ public class MediaFileService {
 
         User uploader = userService.findById(userId);
 
-        // Создаём директорию для хранения файлов дерева
-        Path treeUploadPath = Paths.get(uploadDir, "trees", treeId.toString());
-        Files.createDirectories(treeUploadPath);
-
-        // Генерируем уникальное имя файла, сохраняя расширение
+        // Генерируем S3-ключ: trees/{treeId}/media/{uuid}.ext
         String originalFilename = file.getOriginalFilename();
-        String extension = "";
-        if (originalFilename != null && originalFilename.contains(".")) {
-            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
-        String storedFileName = UUID.randomUUID() + extension;
-        Path targetPath = treeUploadPath.resolve(storedFileName);
+        String extension = extractExtension(originalFilename);
+        String s3Key = "trees/" + treeId + "/media/" + UUID.randomUUID() + extension;
 
-        Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
-        log.info("Saved file {} to {}", originalFilename, targetPath);
+        // Загружаем в S3
+        s3Service.upload(s3Key, file.getInputStream(),
+                resolveContentType(file.getContentType(), extension),
+                file.getSize());
+        log.info("Uploaded media file to S3: {} (tree={}, person={})", s3Key, treeId, personId);
 
+        // Сохраняем метаданные в БД (filePath = s3Key)
         MediaFile mediaFile = new MediaFile(
                 person,
                 tree,
-                originalFilename != null ? originalFilename : storedFileName,
-                targetPath.toString(),
+                originalFilename != null ? originalFilename : s3Key,
+                s3Key,
                 fileType,
                 file.getSize(),
                 description,
@@ -130,8 +130,17 @@ public class MediaFileService {
                 .toList();
     }
 
-    public Resource downloadFile(Long treeId, Long personId, Long fileId, Long userId)
-            throws AccessDeniedException, MalformedURLException {
+    /**
+     * Результат скачивания файла: ресурс + оригинальное имя файла.
+     */
+    public record DownloadResult(Resource resource, String fileName) {}
+
+    /**
+     * Скачать файл из S3 и вернуть как Resource (проксирование через бэкенд).
+     * Используется для файлов, которые не должны быть публично доступны.
+     */
+    public DownloadResult downloadFile(Long treeId, Long personId, Long fileId, Long userId)
+            throws AccessDeniedException {
         if (!treeService.canView(treeId, userId)) {
             throw new AccessDeniedException("Нет прав на просмотр дерева");
         }
@@ -147,14 +156,9 @@ public class MediaFileService {
             throw new AccessDeniedException("Файл не принадлежит этой персоне");
         }
 
-        Path filePath = Paths.get(mediaFile.getFilePath());
-        Resource resource = new UrlResource(filePath.toUri());
-
-        if (!resource.exists() || !resource.isReadable()) {
-            throw new RuntimeException("Файл не найден на диске: " + mediaFile.getFilePath());
-        }
-
-        return resource;
+        ResponseInputStream<GetObjectResponse> s3Stream = s3Service.download(mediaFile.getFilePath());
+        String fileName = mediaFile.getFileName() != null ? mediaFile.getFileName() : "file";
+        return new DownloadResult(new InputStreamResource(s3Stream), fileName);
     }
 
     @Transactional
@@ -174,19 +178,25 @@ public class MediaFileService {
             throw new AccessDeniedException("Файл не принадлежит этой персоне");
         }
 
-        // Удаляем физический файл
+        // Удаляем из S3
         try {
-            Path filePath = Paths.get(mediaFile.getFilePath());
-            Files.deleteIfExists(filePath);
-            log.info("Deleted file from disk: {}", filePath);
-        } catch (IOException e) {
-            log.warn("Could not delete file from disk: {}", mediaFile.getFilePath(), e);
+            s3Service.delete(mediaFile.getFilePath());
+        } catch (Exception e) {
+            log.warn("Could not delete file from S3: {}", mediaFile.getFilePath(), e);
         }
 
         mediaFileRepository.delete(mediaFile);
     }
 
     public MediaFileDTO convertToDTO(MediaFile mediaFile) {
+        // Генерируем presigned URL для временного доступа
+        String url = null;
+        try {
+            url = s3Service.generatePresignedUrl(mediaFile.getFilePath());
+        } catch (Exception e) {
+            log.warn("Could not generate presigned URL for {}: {}", mediaFile.getFilePath(), e.getMessage());
+        }
+
         return new MediaFileDTO(
                 mediaFile.getId(),
                 mediaFile.getPerson() != null ? mediaFile.getPerson().getId() : null,
@@ -196,7 +206,35 @@ public class MediaFileService {
                 mediaFile.getFileSize(),
                 mediaFile.getDescription(),
                 mediaFile.getUploadedAt(),
-                mediaFile.getUploadedBy().getId()
+                mediaFile.getUploadedBy().getId(),
+                url
         );
+    }
+
+    // ─── helpers ─────────────────────────────────────────────────────────────────
+
+    private String extractExtension(String filename) {
+        if (filename != null && filename.contains(".")) {
+            return filename.substring(filename.lastIndexOf(".")).toLowerCase();
+        }
+        return "";
+    }
+
+    private String resolveContentType(String contentType, String extension) {
+        if (contentType != null && !contentType.isBlank() && !contentType.equals("application/octet-stream")) {
+            return contentType;
+        }
+        return switch (extension) {
+            case ".jpg", ".jpeg" -> "image/jpeg";
+            case ".png"          -> "image/png";
+            case ".gif"          -> "image/gif";
+            case ".webp"         -> "image/webp";
+            case ".pdf"          -> "application/pdf";
+            case ".mp4"          -> "video/mp4";
+            case ".mp3"          -> "audio/mpeg";
+            case ".doc"          -> "application/msword";
+            case ".docx"         -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            default              -> "application/octet-stream";
+        };
     }
 }

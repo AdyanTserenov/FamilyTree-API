@@ -1,5 +1,6 @@
 package com.project.familytree.tree.dto;
 
+import com.project.familytree.tree.impls.TreeRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
@@ -14,6 +15,9 @@ public class TreeDTO {
     @Schema(description = "Дата создания")
     private Instant createdAt;
 
+    @Schema(description = "Роль текущего пользователя в дереве")
+    private TreeRole role;
+
     public TreeDTO() {
     }
 
@@ -21,6 +25,13 @@ public class TreeDTO {
         this.id = id;
         this.name = name;
         this.createdAt = createdAt;
+    }
+
+    public TreeDTO(Long id, String name, Instant createdAt, TreeRole role) {
+        this.id = id;
+        this.name = name;
+        this.createdAt = createdAt;
+        this.role = role;
     }
 
     public Long getId() { return id; }
@@ -31,4 +42,7 @@ public class TreeDTO {
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public TreeRole getRole() { return role; }
+    public void setRole(TreeRole role) { this.role = role; }
 }

@@ -1,10 +1,10 @@
 package com.project.familytree.tree.controllers;
 
 import com.project.familytree.auth.dto.CustomApiResponse;
-import com.project.familytree.auth.dto.UserDTO;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.TreeDTO;
 import com.project.familytree.tree.dto.InviteRequest;
+import com.project.familytree.tree.dto.TreeMemberDTO;
 import com.project.familytree.tree.dto.TreeRequest;
 import com.project.familytree.tree.services.TreeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -124,14 +124,14 @@ public class TreeController {
     @GetMapping("/{treeId}/members")
     @Operation(summary = "Получить список участников дерева",
                description = "Возвращает всех пользователей с доступом к дереву. Требует роль VIEWER или выше.")
-    public ResponseEntity<CustomApiResponse<List<UserDTO>>> getMembers(
+    public ResponseEntity<CustomApiResponse<List<TreeMemberDTO>>> getMembers(
             @PathVariable Long treeId) throws AccessDeniedException {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
         if (!treeService.canView(treeId, userId)) {
             throw new AccessDeniedException("Нет прав на просмотр участников");
         }
-        List<UserDTO> members = treeService.getMembers(treeId);
+        List<TreeMemberDTO> members = treeService.getMembers(treeId);
         return ResponseEntity.ok(CustomApiResponse.successData(members));
     }
 }

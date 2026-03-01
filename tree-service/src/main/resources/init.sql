@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS media_files (
     tree_id     BIGINT       NOT NULL REFERENCES trees(id) ON DELETE CASCADE,
     file_name   VARCHAR(255) NOT NULL,
     file_path   VARCHAR(512) NOT NULL,
-    file_type   VARCHAR(20)  NOT NULL CHECK (file_type IN ('PHOTO', 'DOCUMENT', 'VIDEO', 'AUDIO')),
+    file_type   VARCHAR(20)  NOT NULL CHECK (file_type IN ('IMAGE', 'DOCUMENT', 'VIDEO', 'AUDIO')),
     file_size   BIGINT       NOT NULL,
     description TEXT,
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

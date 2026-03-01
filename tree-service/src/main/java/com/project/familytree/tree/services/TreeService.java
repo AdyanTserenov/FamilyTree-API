@@ -1,6 +1,5 @@
 package com.project.familytree.tree.services;
 
-import com.project.familytree.auth.dto.UserDTO;
 import com.project.familytree.auth.services.MailSenderService;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.PersonDTO;
@@ -8,6 +7,7 @@ import com.project.familytree.tree.dto.PersonRelationshipRequest;
 import com.project.familytree.tree.dto.PersonRequest;
 import com.project.familytree.tree.dto.RelationshipDTO;
 import com.project.familytree.tree.dto.TreeDTO;
+import com.project.familytree.tree.dto.TreeMemberDTO;
 import com.project.familytree.tree.impls.RelationshipType;
 import com.project.familytree.tree.impls.TreeRole;
 import com.project.familytree.tree.models.Invitation;
@@ -21,17 +21,12 @@ import com.project.familytree.tree.repositories.PersonRepository;
 import com.project.familytree.tree.repositories.RelationshipRepository;
 import com.project.familytree.tree.repositories.TreeMembershipRepository;
 import com.project.familytree.tree.repositories.TreeRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.AccessDeniedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -39,9 +34,6 @@ import java.util.UUID;
 
 @Service
 public class TreeService {
-
-    @Value("${media.upload.dir:./uploads}")
-    private String uploadDir;
 
     private final UserService userService;
     private final TreeRepository treeRepository;
@@ -51,6 +43,7 @@ public class TreeService {
     private final PersonRepository personRepository;
     private final RelationshipRepository relationshipRepository;
     private final MediaFileRepository mediaFileRepository;
+    private final S3Service s3Service;
 
     public TreeService(UserService userService,
                        TreeRepository treeRepository,
@@ -59,7 +52,8 @@ public class TreeService {
                        InvitationRepository invitationRepository,
                        PersonRepository personRepository,
                        RelationshipRepository relationshipRepository,
-                       MediaFileRepository mediaFileRepository) {
+                       MediaFileRepository mediaFileRepository,
+                       S3Service s3Service) {
         this.userService = userService;
         this.treeRepository = treeRepository;
         this.membershipRepository = membershipRepository;
@@ -68,6 +62,7 @@ public class TreeService {
         this.personRepository = personRepository;
         this.relationshipRepository = relationshipRepository;
         this.mediaFileRepository = mediaFileRepository;
+        this.s3Service = s3Service;
     }
 
     // ─── Tree management ────────────────────────────────────────────────────────
@@ -144,17 +139,19 @@ public class TreeService {
         return memberships.stream()
                 .map(tm -> {
                     Tree t = tm.getTree();
-                    return new TreeDTO(t.getId(), t.getName(), t.getCreatedAt());
+                    return new TreeDTO(t.getId(), t.getName(), t.getCreatedAt(), tm.getRole());
                 })
                 .toList();
     }
 
-    public List<UserDTO> getMembers(Long treeId) {
+    public List<TreeMemberDTO> getMembers(Long treeId) {
         List<TreeMembership> memberships = membershipRepository.findByTreeId(treeId);
         return memberships.stream()
                 .map(tm -> {
                     com.project.familytree.auth.models.User u = tm.getUser();
-                    return new UserDTO(u.getId(), u.getFirstName(), u.getLastName(), u.getMiddleName(), u.getEmail());
+                    return new TreeMemberDTO(
+                            u.getId(), u.getFirstName(), u.getLastName(), u.getMiddleName(),
+                            u.getEmail(), tm.getRole(), tm.getCreatedAt());
                 })
                 .toList();
     }
@@ -383,19 +380,29 @@ public class TreeService {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
         }
 
-        // Сохраняем файл аватара в директорию uploads/avatars/{personId}/
-        Path avatarDir = Paths.get(uploadDir, "avatars", personId.toString());
-        Files.createDirectories(avatarDir);
+        // Удаляем старый аватар из S3 если есть
+        String oldAvatarKey = person.getAvatarUrl();
+        if (oldAvatarKey != null && oldAvatarKey.startsWith("trees/")) {
+            try {
+                s3Service.delete(oldAvatarKey);
+            } catch (Exception e) {
+                // не критично — продолжаем загрузку нового
+            }
+        }
 
+        // Загружаем новый аватар в S3: trees/{treeId}/avatars/{uuid}.ext
         String originalFilename = file.getOriginalFilename();
         String extension = (originalFilename != null && originalFilename.contains("."))
-                ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                ? originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase()
                 : ".jpg";
-        String storedFileName = UUID.randomUUID() + extension;
-        Path targetPath = avatarDir.resolve(storedFileName);
-        Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+        String s3Key = "trees/" + treeId + "/avatars/" + UUID.randomUUID() + extension;
 
-        person.setAvatarUrl("/uploads/avatars/" + personId + "/" + storedFileName);
+        s3Service.upload(s3Key, file.getInputStream(),
+                file.getContentType() != null ? file.getContentType() : "image/jpeg",
+                file.getSize());
+
+        // Сохраняем S3-ключ как avatarUrl — presigned URL генерируется при чтении
+        person.setAvatarUrl(s3Key);
         person = personRepository.save(person);
         return convertToDTO(person, treeId);
     }
@@ -413,6 +420,16 @@ public class TreeService {
                 .map(r -> new RelationshipDTO(r.getId(), r.getPerson1().getId(), r.getPerson2().getId(), r.getType()))
                 .toList();
 
+        // Если avatarUrl — S3-ключ (начинается с "trees/"), генерируем presigned URL
+        String avatarUrl = person.getAvatarUrl();
+        if (avatarUrl != null && avatarUrl.startsWith("trees/")) {
+            try {
+                avatarUrl = s3Service.generatePresignedUrl(avatarUrl);
+            } catch (Exception e) {
+                avatarUrl = null; // не критично — просто не показываем аватар
+            }
+        }
+
         return new PersonDTO(
                 person.getId(),
                 person.getTree().getId(),
@@ -424,7 +441,7 @@ public class TreeService {
                 person.getBirthPlace(),
                 person.getDeathPlace(),
                 person.getBiography(),
-                person.getAvatarUrl(),
+                avatarUrl,
                 person.getGender(),
                 relationshipDTOs,
                 person.getFullName()

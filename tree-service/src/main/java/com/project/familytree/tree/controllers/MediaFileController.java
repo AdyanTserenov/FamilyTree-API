@@ -76,23 +76,25 @@ public class MediaFileController {
 
     @GetMapping("/{fileId}/download")
     @Operation(summary = "Скачать медиафайл",
-               description = "Возвращает содержимое файла для скачивания")
+               description = "Возвращает содержимое файла для скачивания (проксирование через бэкенд из S3)")
     public ResponseEntity<Resource> downloadFile(
             @PathVariable Long treeId,
             @PathVariable Long personId,
-            @PathVariable Long fileId) throws AccessDeniedException, IOException {
+            @PathVariable Long fileId) throws AccessDeniedException {
 
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
         log.info("Downloading file {} for person {} in tree {} by user {}", fileId, personId, treeId, userId);
 
-        Resource resource = mediaFileService.downloadFile(treeId, personId, fileId, userId);
+        MediaFileService.DownloadResult result = mediaFileService.downloadFile(treeId, personId, fileId, userId);
+
+        String safeFilename = result.fileName().replaceAll("[^a-zA-Z0-9._\\-]", "_");
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + resource.getFilename() + "\"")
+                        "attachment; filename=\"" + safeFilename + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(resource);
+                .body(result.resource());
     }
 
     @DeleteMapping("/{fileId}")

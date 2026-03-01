@@ -42,6 +42,7 @@ class TreeServiceTest {
     @Mock private PersonRepository personRepository;
     @Mock private RelationshipRepository relationshipRepository;
     @Mock private MediaFileRepository mediaFileRepository;
+    @Mock private S3Service s3Service;
 
     @InjectMocks
     private TreeService treeService;
