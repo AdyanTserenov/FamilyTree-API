@@ -39,9 +39,8 @@ logs/
 *.log
 auth-service/.m2
 
-# Docker
-docker-compose.yml
-Dockerfile
+# Docker — Dockerfiles are committed; docker-compose.yml is committed (no secrets inside)
+# .env is NOT committed (contains secrets) — use .env.example as template
 
 .gitignore
 .env

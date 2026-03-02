@@ -19,7 +19,7 @@ import java.util.Map;
  * Глобальный обработчик исключений для tree-service.
  * Преобразует исключения в стандартный формат CustomApiResponse.
  */
-@RestControllerAdvice
+@RestControllerAdvice("treeGlobalExceptionHandler")
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);

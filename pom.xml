@@ -18,6 +18,7 @@
 
     <modules>
         <module>family-tree-auth-starter</module>
+        <module>auth-service</module>
         <module>tree-service</module>
     </modules>
 
