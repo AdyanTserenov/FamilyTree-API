@@ -194,7 +194,11 @@ public class SecurityController {
             }
     )
     public ResponseEntity<CustomApiResponse<Map<String, String>>> forgotPassword(@Valid @RequestBody PasswordResetRequest request) {
-        userService.sendResetToken(request.getEmail());
+        try {
+            userService.sendResetToken(request.getEmail());
+        } catch (Exception ignored) {
+            // Намеренно игнорируем — не раскрываем наличие email в системе
+        }
         return ResponseEntity.ok(CustomApiResponse.success(Map.of("message", "If the email exists, a password reset link has been sent")));
     }
 
@@ -299,5 +303,16 @@ public class SecurityController {
     public ResponseEntity<CustomApiResponse<String>> confirmRegistration(@RequestParam("token") String token) {
         userService.confirmUser(token);
         return ResponseEntity.ok(CustomApiResponse.success("email успешно подтверждён!"));
+    }
+
+    @PostMapping("/resend-verification")
+    @Operation(
+            summary = "Повторная отправка письма с подтверждением email",
+            description = "Отправляет новое письмо с токеном подтверждения, если email ещё не подтверждён."
+    )
+    public ResponseEntity<CustomApiResponse<String>> resendVerification(
+            @Valid @RequestBody PasswordResetRequest request) {
+        userService.resendVerification(request.getEmail());
+        return ResponseEntity.ok(CustomApiResponse.success("Письмо с подтверждением отправлено"));
     }
 }

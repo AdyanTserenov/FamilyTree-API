@@ -83,13 +83,12 @@ public class TokenService {
 
     @Transactional
     public void cancelActiveTokens(Long userId, TokenType type) {
-        List<Token> tokens = tokenRepository.findActiveTokensByUserId(userId);
+        List<Token> tokens = tokenRepository.findActiveTokensByUserIdAndType(userId, type);
         for (Token token : tokens) {
-            if (token.getType() == type) {
-                token.getDetails().setConsumed(true);
-                tokenRepository.save(token);
-                break;
-            }
+            token.getDetails().setConsumed(true);
+        }
+        if (!tokens.isEmpty()) {
+            tokenRepository.saveAll(tokens);
         }
     }
 }

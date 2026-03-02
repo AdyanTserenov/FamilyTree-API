@@ -6,6 +6,7 @@ import com.project.familytree.models.User;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -17,8 +18,11 @@ public class MailSenderService {
     private final JavaMailSender javaMailSender;
     private final EmailTemplateService emailTemplateService;
 
+    @Value("${app.base-url:http://localhost:3000}")
+    private String baseUrl;
+
     public void sendPasswordResetEmail(String email, String token, String userName) {
-        String resetLink = "https://familytree.com/reset-password?token=" + token;
+        String resetLink = baseUrl + "/reset-password?token=" + token;
         String subject = "Сброс пароля - FamilyTree";
 
         MimeMessage message = buildMessage(subject, email, resetLink, userName);
@@ -28,7 +32,7 @@ public class MailSenderService {
     }
 
     public void sendCreationEmail(String email, String token, String userName) {
-        String creationLink = "https://familytree.com/confirm?token=" + token;
+        String creationLink = baseUrl + "/confirm-email?token=" + token;
         String subject = "Подтверждение регистрации - FamilyTree";
 
         MimeMessage message = buildMessage(subject, email, creationLink, userName);

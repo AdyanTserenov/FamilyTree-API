@@ -1,6 +1,7 @@
 package com.project.familytree.services;
 
 import com.project.familytree.dto.SignUpRequest;
+import com.project.familytree.dto.UpdateProfileRequest;
 import com.project.familytree.exceptions.*;
 import com.project.familytree.impls.TokenType;
 import com.project.familytree.impls.UserDetailsImpl;
@@ -102,5 +103,30 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
 
         tokenService.consumeToken(token);
+    }
+
+    public User updateProfile(String email, UpdateProfileRequest request) {
+        User user = findByEmail(email);
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setMiddleName(request.getMiddleName());
+        return userRepository.save(user);
+    }
+
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        User user = findByEmail(email);
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new InvalidRequestException("Текущий пароль неверен");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    public void resendVerification(String email) {
+        User user = findByEmail(email);
+        if (user.isEnabled()) {
+            throw new InvalidRequestException("Email уже подтверждён");
+        }
+        sendVerifyToken(email);
     }
 }

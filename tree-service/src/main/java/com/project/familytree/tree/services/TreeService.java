@@ -45,6 +45,9 @@ public class TreeService {
     private final MediaFileRepository mediaFileRepository;
     private final S3Service s3Service;
 
+    @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:3000}")
+    private String baseUrl;
+
     public TreeService(UserService userService,
                        TreeRepository treeRepository,
                        TreeMembershipRepository membershipRepository,
@@ -174,7 +177,7 @@ public class TreeService {
     }
 
     private String buildInviteLink(String token) {
-        return "https://familytree.example.com/invite/" + token;
+        return baseUrl + "/invite/" + token;
     }
 
     public void sendInviteByEmail(Long treeId, String email, TreeRole role, Long inviterId) throws AccessDeniedException {

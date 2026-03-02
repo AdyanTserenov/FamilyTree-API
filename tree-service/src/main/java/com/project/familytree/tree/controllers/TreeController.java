@@ -30,6 +30,9 @@ public class TreeController {
     private final TreeService treeService;
     private final UserService userService;
 
+    @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:3000}")
+    private String baseUrl;
+
     public TreeController(TreeService treeService, UserService userService) {
         this.treeService = treeService;
         this.userService = userService;
@@ -106,7 +109,7 @@ public class TreeController {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long inviterId = userService.findIdByDetails(userDetails);
         String token = treeService.createInviteToken(treeId, inviteRequest.email(), inviteRequest.role(), inviterId);
-        String inviteLink = "https://familytree.example.com/invite/" + token;
+        String inviteLink = baseUrl + "/invite/" + token;
         return ResponseEntity.ok(CustomApiResponse.successData(Map.of("inviteLink", inviteLink)));
     }
 

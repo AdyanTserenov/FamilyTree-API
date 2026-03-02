@@ -1,5 +1,6 @@
 package com.project.familytree.repositories;
 
+import com.project.familytree.impls.TokenType;
 import com.project.familytree.models.Token;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -17,6 +18,9 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
 
     @Query("SELECT t FROM Token t WHERE t.details.userId = :userId AND t.details.consumed = false")
     List<Token> findActiveTokensByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT t FROM Token t WHERE t.details.userId = :userId AND t.type = :type AND t.details.consumed = false")
+    List<Token> findActiveTokensByUserIdAndType(@Param("userId") Long userId, @Param("type") TokenType type);
 
     @Modifying
     @Query("delete from Token t where t.details.expiresAt < current_timestamp")

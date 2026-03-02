@@ -57,7 +57,7 @@ services:
       # Database
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/familytree
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       # JWT (must match tree-service)
       FAMILY_AUTH_JWT_SECRET: ${JWT_SECRET:-mySuperSecretKeyThatIsLongEnoughForHMACSHA256Algorithm123456789}
       FAMILY_AUTH_JWT_LIFETIME: 3600000
@@ -66,16 +66,18 @@ services:
       SPRING_MAIL_PORT: ${MAIL_PORT:-587}
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # Frontend base URL (used in email links)
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       # Server
       SERVER_PORT: 8081
-      # JVM tuning — limit heap, reduce GC threads, use serial GC for low-CPU env
-      JAVA_OPTS: >-
-        -Xms128m
-        -Xmx256m
-        -XX:+UseSerialGC
-        -XX:ActiveProcessorCount=1
-        -Djava.security.egd=file:/dev/./urandom
-    entrypoint: ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+    # JVM tuning — limit heap, reduce GC threads, use serial GC for low-CPU env
+    command: >
+      java
+      -Xms128m -Xmx256m
+      -XX:+UseSerialGC
+      -XX:ActiveProcessorCount=1
+      -Djava.security.egd=file:/dev/./urandom
+      -jar app.jar
     ports:
       - "8081:8081"
     # Resource limits — 1 vCPU shared, 384MB RAM
@@ -105,7 +107,7 @@ services:
       # Database
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/familytree
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       # JWT (must match auth-service)
       FAMILY_AUTH_JWT_SECRET: ${JWT_SECRET:-mySuperSecretKeyThatIsLongEnoughForHMACSHA256Algorithm123456789}
       FAMILY_AUTH_JWT_LIFETIME: 3600000
@@ -114,6 +116,8 @@ services:
       SPRING_MAIL_PORT: ${MAIL_PORT:-587}
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # Frontend base URL (used in invite links)
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       # Yandex GPT AI (optional — leave blank to disable)
       AI_YANDEX_API_KEY: ${AI_YANDEX_API_KEY:-}
       AI_YANDEX_FOLDER_ID: ${AI_YANDEX_FOLDER_ID:-}
@@ -125,14 +129,14 @@ services:
       S3_REGION: ${S3_REGION:-ru-central1}
       # Server
       SERVER_PORT: 8080
-      # JVM tuning — limit heap, reduce GC threads, use serial GC for low-CPU env
-      JAVA_OPTS: >-
-        -Xms128m
-        -Xmx256m
-        -XX:+UseSerialGC
-        -XX:ActiveProcessorCount=1
-        -Djava.security.egd=file:/dev/./urandom
-    entrypoint: ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+    # JVM tuning — limit heap, reduce GC threads, use serial GC for low-CPU env
+    command: >
+      java
+      -Xms128m -Xmx256m
+      -XX:+UseSerialGC
+      -XX:ActiveProcessorCount=1
+      -Djava.security.egd=file:/dev/./urandom
+      -jar app.jar
     ports:
       - "8080:8080"
     # Resource limits — 1 vCPU shared, 384MB RAM
