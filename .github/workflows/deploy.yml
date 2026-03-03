@@ -1,0 +1,43 @@
+name: Deploy API to VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy Backend via SSH
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 20m
+          script: |
+            set -e
+
+            echo "=== [1/5] Pulling latest API code ==="
+            cd ~/vkr/FamilyTree-API
+            git pull origin main
+
+            echo "=== [2/5] Rebuilding backend containers ==="
+            docker compose up --build -d --no-deps postgres
+            docker compose up --build -d --force-recreate --no-deps auth-service tree-service
+
+            echo "=== [3/5] Waiting for services to stabilize ==="
+            sleep 20
+
+            echo "=== [4/5] Container status ==="
+            docker compose ps
+
+            echo "=== [5/5] Health checks ==="
+            curl -sf http://localhost:8081/auth/ping > /dev/null && echo "Auth service: OK" || echo "Auth service: FAILED"
+            curl -sf http://localhost:8080/actuator/health > /dev/null && echo "Tree service: OK" || echo "Tree service: FAILED"
+
+            echo "=== Deploy complete ==="
