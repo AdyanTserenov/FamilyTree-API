@@ -2,44 +2,11 @@ version: "3.9"
 
 # ============================================================
 # Family Tree API — Docker Compose
-# Services: PostgreSQL, auth-service, tree-service
+# Services: auth-service, tree-service
+# Database: Yandex Managed Service for PostgreSQL (external)
 # ============================================================
 
 services:
-
-  # ──────────────────────────────────────────────────────────
-  # PostgreSQL — shared database for both services
-  # ──────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: familytree-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: familytree
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      # Run tree-service DDL on first start
-      - ./tree-service/src/main/resources/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d familytree"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    # Resource limits — PostgreSQL is lightweight
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          memory: 128M
-    networks:
-      - familytree-net
 
   # ──────────────────────────────────────────────────────────
   # auth-service  (port 8081)
@@ -50,14 +17,11 @@ services:
       dockerfile: auth-service/Dockerfile
     container_name: familytree-auth
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
-      # Database
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/familytree
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Database — Yandex Managed PostgreSQL
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       # JWT (must match tree-service)
       FAMILY_AUTH_JWT_SECRET: ${JWT_SECRET:-mySuperSecretKeyThatIsLongEnoughForHMACSHA256Algorithm123456789}
       FAMILY_AUTH_JWT_LIFETIME: 3600000
@@ -70,6 +34,8 @@ services:
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       # Server
       SERVER_PORT: 8081
+    volumes:
+      - /home/atserenov/.postgresql/root.crt:/root/.postgresql/root.crt:ro
     # JVM tuning — limit heap, reduce GC threads, use serial GC for low-CPU env
     command: >
       java
@@ -100,14 +66,11 @@ services:
       dockerfile: tree-service/Dockerfile
     container_name: familytree-tree
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
-      # Database
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/familytree
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Database — Yandex Managed PostgreSQL
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       # JWT (must match auth-service)
       FAMILY_AUTH_JWT_SECRET: ${JWT_SECRET:-mySuperSecretKeyThatIsLongEnoughForHMACSHA256Algorithm123456789}
       FAMILY_AUTH_JWT_LIFETIME: 3600000
@@ -129,6 +92,8 @@ services:
       S3_REGION: ${S3_REGION:-ru-central1}
       # Server
       SERVER_PORT: 8080
+    volumes:
+      - /home/atserenov/.postgresql/root.crt:/root/.postgresql/root.crt:ro
     # JVM tuning — limit heap, reduce GC threads, use serial GC for low-CPU env
     command: >
       java
@@ -149,13 +114,6 @@ services:
           memory: 128M
     networks:
       - familytree-net
-
-# ──────────────────────────────────────────────────────────
-# Named volumes
-# ──────────────────────────────────────────────────────────
-volumes:
-  postgres_data:
-    driver: local
 
 # ──────────────────────────────────────────────────────────
 # Networks

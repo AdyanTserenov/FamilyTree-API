@@ -27,8 +27,7 @@ jobs:
             git pull origin main
 
             echo "=== [2/5] Rebuilding backend containers ==="
-            docker compose up --build -d --no-deps postgres
-            docker compose up --build -d --force-recreate --no-deps auth-service tree-service
+            docker compose up --build -d --force-recreate auth-service tree-service
 
             echo "=== [3/5] Waiting for services to stabilize ==="
             sleep 20
