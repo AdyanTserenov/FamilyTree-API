@@ -3,7 +3,6 @@ package com.project.familytree.configurators;
 import com.project.familytree.security.TokenFilter;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -27,9 +26,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final TokenFilter tokenFilter;
-
-    @Value("${app.base-url:http://localhost:3000}")
-    private String appBaseUrl;
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
@@ -62,8 +58,8 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/profile/**", "/trees/**").fullyAuthenticated()
-                        .anyRequest().permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .anyRequest().authenticated()
                 )
                 .addFilterBefore(tokenFilter, UsernamePasswordAuthenticationFilter.class);
 
