@@ -26,10 +26,14 @@ jobs:
             cd ~/vkr/FamilyTree-API
             git pull origin main
 
-            echo "=== [2/5] Rebuilding backend containers ==="
-            docker compose up --build -d --force-recreate auth-service tree-service
+            echo "=== [2/5] Stopping and removing existing containers ==="
+            docker stop familytree-auth familytree-tree 2>/dev/null || true
+            docker rm familytree-auth familytree-tree 2>/dev/null || true
 
-            echo "=== [3/5] Waiting for services to stabilize ==="
+            echo "=== [3/5] Rebuilding backend containers ==="
+            docker compose up --build -d auth-service tree-service
+
+            echo "=== [4/5] Waiting for services to stabilize ==="
             sleep 20
 
             echo "=== [4/5] Container status ==="

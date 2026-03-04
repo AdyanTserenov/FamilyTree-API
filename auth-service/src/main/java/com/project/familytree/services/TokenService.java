@@ -83,7 +83,10 @@ public class TokenService {
 
     @Transactional
     public void cancelActiveTokens(Long userId, TokenType type) {
-        List<Token> tokens = tokenRepository.findActiveTokensByUserIdAndType(userId, type);
+        List<? extends Token> tokens = switch (type) {
+            case VERIFY -> tokenRepository.findActiveVerifyTokensByUserId(userId);
+            case RESET  -> tokenRepository.findActiveResetTokensByUserId(userId);
+        };
         for (Token token : tokens) {
             token.getDetails().setConsumed(true);
         }
