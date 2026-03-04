@@ -37,14 +37,14 @@ class TokenServiceTest {
     @Test
     @DisplayName("createVerifyToken: отменяет старые токены и сохраняет новый")
     void createVerifyToken_cancelsOldAndSavesNew() {
-        when(tokenRepository.findActiveTokensByUserIdAndType(1L, TokenType.VERIFY))
+        when(tokenRepository.findActiveVerifyTokensByUserId(1L))
                 .thenReturn(List.of());
         when(tokenRepository.save(any(Token.class))).thenAnswer(inv -> inv.getArgument(0));
 
         String rawToken = tokenService.createVerifyToken(1L);
 
         assertThat(rawToken).isNotBlank();
-        verify(tokenRepository).findActiveTokensByUserIdAndType(1L, TokenType.VERIFY);
+        verify(tokenRepository).findActiveVerifyTokensByUserId(1L);
         verify(tokenRepository).save(any(VerifyToken.class));
     }
 
@@ -52,7 +52,7 @@ class TokenServiceTest {
     @DisplayName("createVerifyToken: отменяет существующие активные токены")
     void createVerifyToken_cancelsExistingActiveTokens() {
         VerifyToken existing = new VerifyToken(1L, Duration.ofHours(24));
-        when(tokenRepository.findActiveTokensByUserIdAndType(1L, TokenType.VERIFY))
+        when(tokenRepository.findActiveVerifyTokensByUserId(1L))
                 .thenReturn(List.of(existing));
         when(tokenRepository.saveAll(anyList())).thenReturn(List.of(existing));
         when(tokenRepository.save(any(Token.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -70,7 +70,7 @@ class TokenServiceTest {
     @Test
     @DisplayName("createResetToken: отменяет старые токены и сохраняет новый")
     void createResetToken_cancelsOldAndSavesNew() {
-        when(tokenRepository.findActiveTokensByUserIdAndType(1L, TokenType.RESET))
+        when(tokenRepository.findActiveResetTokensByUserId(1L))
                 .thenReturn(List.of());
         when(tokenRepository.save(any(Token.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -202,7 +202,7 @@ class TokenServiceTest {
         VerifyToken t1 = new VerifyToken(1L, Duration.ofHours(24));
         VerifyToken t2 = new VerifyToken(1L, Duration.ofHours(24));
 
-        when(tokenRepository.findActiveTokensByUserIdAndType(1L, TokenType.VERIFY))
+        when(tokenRepository.findActiveVerifyTokensByUserId(1L))
                 .thenReturn(List.of(t1, t2));
         when(tokenRepository.saveAll(anyList())).thenReturn(List.of(t1, t2));
 
@@ -219,7 +219,7 @@ class TokenServiceTest {
     @Test
     @DisplayName("cancelActiveTokens: не вызывает saveAll если нет активных токенов")
     void cancelActiveTokens_doesNotSaveIfEmpty() {
-        when(tokenRepository.findActiveTokensByUserIdAndType(1L, TokenType.VERIFY))
+        when(tokenRepository.findActiveVerifyTokensByUserId(1L))
                 .thenReturn(List.of());
 
         tokenService.cancelActiveTokens(1L, TokenType.VERIFY);
