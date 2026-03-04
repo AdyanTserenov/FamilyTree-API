@@ -4,6 +4,10 @@ import com.project.familytree.dto.CustomApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -59,6 +63,37 @@ public class GlobalExceptionHandler {
     public ResponseEntity<CustomApiResponse<?>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(CustomApiResponse.error("Недостаточно прав для выполнения операции", null));
+    }
+
+    /** Handles Spring Security authentication failures from AuthenticationManager.authenticate() */
+    @ExceptionHandler(InternalAuthenticationServiceException.class)
+    public ResponseEntity<CustomApiResponse<Void>> handleInternalAuthException(InternalAuthenticationServiceException ex) {
+        Throwable cause = ex.getCause();
+        if (cause instanceof DisabledException) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(CustomApiResponse.error("Email не подтверждён. Проверьте почту и перейдите по ссылке для активации.", null));
+        }
+        // EmailNotFoundException or any other cause → treat as bad credentials
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(CustomApiResponse.error("Неверный email или пароль", null));
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<CustomApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(CustomApiResponse.error("Неверный email или пароль", null));
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<CustomApiResponse<Void>> handleDisabled(DisabledException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(CustomApiResponse.error("Email не подтверждён. Проверьте почту и перейдите по ссылке для активации.", null));
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<CustomApiResponse<Void>> handleLocked(LockedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(CustomApiResponse.error("Аккаунт заблокирован", null));
     }
 
     @ExceptionHandler(RuntimeException.class)
