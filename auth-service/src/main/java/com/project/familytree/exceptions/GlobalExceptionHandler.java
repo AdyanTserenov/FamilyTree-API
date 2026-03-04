@@ -41,7 +41,8 @@ public class GlobalExceptionHandler {
                 .body(CustomApiResponse.error(ex.getMessage(), null));
     }
 
-    @ExceptionHandler({InvalidRequestException.class, InvalidTokenException.class})
+    @ExceptionHandler({InvalidRequestException.class, InvalidTokenException.class,
+            TokenAlreadyUsedException.class, TokenExpiredException.class})
     public ResponseEntity<CustomApiResponse<?>> handleInvalidException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(CustomApiResponse.error(ex.getMessage(), null));
