@@ -94,4 +94,9 @@ public class TokenService {
             tokenRepository.saveAll(tokens);
         }
     }
+
+    @Transactional
+    public void deleteAllTokensForUser(Long userId) {
+        tokenRepository.deleteAllByUserId(userId);
+    }
 }

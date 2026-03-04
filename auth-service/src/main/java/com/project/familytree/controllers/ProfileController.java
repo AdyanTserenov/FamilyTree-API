@@ -72,4 +72,13 @@ public class ProfileController {
         userService.changePassword(email, request.getCurrentPassword(), request.getNewPassword());
         return ResponseEntity.ok(CustomApiResponse.success("Пароль успешно изменён"));
     }
+
+    @DeleteMapping
+    @Operation(summary = "Удалить аккаунт текущего пользователя")
+    public ResponseEntity<CustomApiResponse<String>> deleteAccount(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String email = userDetails.getUsername();
+        userService.deleteAccount(email);
+        return ResponseEntity.ok(CustomApiResponse.success("Аккаунт успешно удалён"));
+    }
 }

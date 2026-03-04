@@ -129,4 +129,11 @@ public class UserService implements UserDetailsService {
         }
         sendVerifyToken(email);
     }
+
+    public void deleteAccount(String email) {
+        User user = findByEmail(email);
+        tokenService.deleteAllTokensForUser(user.getId());
+        userRepository.deleteById(user.getId());
+        log.info("Account deleted for user: {}", email);
+    }
 }
