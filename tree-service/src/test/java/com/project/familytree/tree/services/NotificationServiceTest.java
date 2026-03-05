@@ -3,6 +3,7 @@ package com.project.familytree.tree.services;
 import com.project.familytree.auth.models.User;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.NotificationDTO;
+import com.project.familytree.tree.exceptions.ResourceNotFoundException;
 import com.project.familytree.tree.impls.NotificationType;
 import com.project.familytree.tree.models.Notification;
 import com.project.familytree.tree.repositories.NotificationRepository;
@@ -13,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.file.AccessDeniedException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -171,7 +173,7 @@ class NotificationServiceTest {
     // ─── markAsRead ───────────────────────────────────────────────────────────────
 
     @Test
-    void markAsRead_byOwner_setsReadTrue() {
+    void markAsRead_byOwner_setsReadTrue() throws AccessDeniedException {
         when(notificationRepository.findById(50L)).thenReturn(Optional.of(notification));
         when(notificationRepository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -182,20 +184,20 @@ class NotificationServiceTest {
     }
 
     @Test
-    void markAsRead_byOtherUser_throwsRuntimeException() {
+    void markAsRead_byOtherUser_throwsAccessDeniedException() {
         when(notificationRepository.findById(50L)).thenReturn(Optional.of(notification));
 
         assertThatThrownBy(() -> notificationService.markAsRead(50L, 99L))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("доступ");
     }
 
     @Test
-    void markAsRead_notFound_throwsRuntimeException() {
+    void markAsRead_notFound_throwsResourceNotFoundException() {
         when(notificationRepository.findById(50L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> notificationService.markAsRead(50L, 1L))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("не найдено");
     }
 
@@ -211,7 +213,7 @@ class NotificationServiceTest {
     // ─── deleteNotification ───────────────────────────────────────────────────────
 
     @Test
-    void deleteNotification_byOwner_deletesFromRepository() {
+    void deleteNotification_byOwner_deletesFromRepository() throws AccessDeniedException {
         when(notificationRepository.findById(50L)).thenReturn(Optional.of(notification));
 
         notificationService.deleteNotification(50L, 1L);
@@ -220,20 +222,20 @@ class NotificationServiceTest {
     }
 
     @Test
-    void deleteNotification_byOtherUser_throwsRuntimeException() {
+    void deleteNotification_byOtherUser_throwsAccessDeniedException() {
         when(notificationRepository.findById(50L)).thenReturn(Optional.of(notification));
 
         assertThatThrownBy(() -> notificationService.deleteNotification(50L, 99L))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("доступ");
     }
 
     @Test
-    void deleteNotification_notFound_throwsRuntimeException() {
+    void deleteNotification_notFound_throwsResourceNotFoundException() {
         when(notificationRepository.findById(50L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> notificationService.deleteNotification(50L, 1L))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("не найдено");
     }
 

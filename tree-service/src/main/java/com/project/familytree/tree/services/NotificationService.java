@@ -5,12 +5,14 @@ import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.NotificationDTO;
 import com.project.familytree.tree.impls.NotificationType;
 import com.project.familytree.tree.models.Notification;
+import com.project.familytree.tree.exceptions.ResourceNotFoundException;
 import com.project.familytree.tree.repositories.NotificationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.AccessDeniedException;
 import java.util.List;
 
 /**
@@ -80,12 +82,12 @@ public class NotificationService {
      * Отметить одно уведомление как прочитанное
      */
     @Transactional
-    public NotificationDTO markAsRead(Long notificationId, Long userId) {
+    public NotificationDTO markAsRead(Long notificationId, Long userId) throws AccessDeniedException {
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new RuntimeException("Уведомление не найдено"));
+                .orElseThrow(() -> new ResourceNotFoundException("Уведомление не найдено"));
 
         if (!notification.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Нет доступа к этому уведомлению");
+            throw new AccessDeniedException("Нет доступа к этому уведомлению");
         }
 
         notification.setRead(true);
@@ -106,12 +108,12 @@ public class NotificationService {
      * Удалить уведомление
      */
     @Transactional
-    public void deleteNotification(Long notificationId, Long userId) {
+    public void deleteNotification(Long notificationId, Long userId) throws AccessDeniedException {
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new RuntimeException("Уведомление не найдено"));
+                .orElseThrow(() -> new ResourceNotFoundException("Уведомление не найдено"));
 
         if (!notification.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Нет доступа к этому уведомлению");
+            throw new AccessDeniedException("Нет доступа к этому уведомлению");
         }
 
         notificationRepository.delete(notification);

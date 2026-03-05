@@ -60,19 +60,23 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 404 — Ресурс не найден (RuntimeException с "не найден" в сообщении)
+     * 404 — Ресурс не найден
      */
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<CustomApiResponse<Void>> handleRuntime(RuntimeException ex) {
-        String message = ex.getMessage();
-        if (message != null && (message.contains("не найден") || message.contains("не найдена"))) {
-            log.warn("Resource not found: {}", message);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(CustomApiResponse.error(message));
-        }
-        log.error("Runtime error: {}", message, ex);
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<CustomApiResponse<Void>> handleNotFound(ResourceNotFoundException ex) {
+        log.warn("Resource not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(CustomApiResponse.error(ex.getMessage()));
+    }
+
+    /**
+     * 400 — Нарушение бизнес-правил (дубликат связи, редактирование удалённого комментария и т.д.)
+     */
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<CustomApiResponse<Void>> handleBusiness(BusinessException ex) {
+        log.warn("Business rule violation: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(CustomApiResponse.error(message != null ? message : "Произошла ошибка"));
+                .body(CustomApiResponse.error(ex.getMessage()));
     }
 
     /**

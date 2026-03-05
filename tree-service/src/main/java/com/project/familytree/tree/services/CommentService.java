@@ -10,6 +10,8 @@ import com.project.familytree.tree.models.Person;
 import com.project.familytree.tree.repositories.CommentRepository;
 import com.project.familytree.tree.repositories.PersonRepository;
 import com.project.familytree.tree.repositories.TreeMembershipRepository;
+import com.project.familytree.tree.exceptions.BusinessException;
+import com.project.familytree.tree.exceptions.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -91,7 +93,7 @@ public class CommentService {
         }
 
         Person person = personRepository.findById(personId)
-                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+                .orElseThrow(() -> new ResourceNotFoundException("Персона не найдена"));
 
         if (!person.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
@@ -102,7 +104,7 @@ public class CommentService {
         Comment parentComment = null;
         if (parentCommentId != null) {
             parentComment = commentRepository.findById(parentCommentId)
-                    .orElseThrow(() -> new RuntimeException("Родительский комментарий не найден"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Родительский комментарий не найден"));
         }
 
         Comment comment = new Comment(person, author, parentComment, content);
@@ -121,14 +123,14 @@ public class CommentService {
     @Transactional
     public CommentDTO editComment(Long commentId, String newContent, Long userId) throws AccessDeniedException {
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new RuntimeException("Комментарий не найден"));
+                .orElseThrow(() -> new ResourceNotFoundException("Комментарий не найден"));
 
         if (!comment.getAuthor().getId().equals(userId)) {
             throw new AccessDeniedException("Только автор может редактировать комментарий");
         }
 
         if (comment.isDeleted()) {
-            throw new RuntimeException("Нельзя редактировать удалённый комментарий");
+            throw new BusinessException("Нельзя редактировать удалённый комментарий");
         }
 
         comment.setContent(newContent);
@@ -143,7 +145,7 @@ public class CommentService {
     @Transactional
     public void deleteComment(Long treeId, Long commentId, Long userId) throws AccessDeniedException {
         Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new RuntimeException("Комментарий не найден"));
+                .orElseThrow(() -> new ResourceNotFoundException("Комментарий не найден"));
 
         boolean isAuthor = comment.getAuthor().getId().equals(userId);
         boolean canModerate = treeService.canEdit(treeId, userId);

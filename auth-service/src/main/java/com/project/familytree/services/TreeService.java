@@ -104,8 +104,11 @@ public class TreeService {
         return invitation.getToken();
     }
 
+    @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:3000}")
+    private String baseUrl;
+
     private String buildInviteLink(String token) {
-        return "https://familytree.example.com/invite/" + token;
+        return baseUrl + "/invite/" + token;
     }
 
     public void sendInviteByEmail(Long treeId, String email, TreeRole role, Long inviterId) throws AccessDeniedException {

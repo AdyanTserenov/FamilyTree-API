@@ -47,5 +47,8 @@ auth-service/.m2
 .vscode
 .idea
 
+# Local dev properties — may contain real credentials, never commit
+**/application-local.properties
+
 family-tree-auth-starter/target
 tree-service/target

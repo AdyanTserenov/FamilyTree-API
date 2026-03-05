@@ -21,6 +21,8 @@ import com.project.familytree.tree.repositories.PersonRepository;
 import com.project.familytree.tree.repositories.RelationshipRepository;
 import com.project.familytree.tree.repositories.TreeMembershipRepository;
 import com.project.familytree.tree.repositories.TreeRepository;
+import com.project.familytree.tree.exceptions.BusinessException;
+import com.project.familytree.tree.exceptions.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -85,7 +87,7 @@ public class TreeService {
 
     public Tree getById(Long treeId) {
         return treeRepository.findById(treeId)
-                .orElseThrow(() -> new RuntimeException("Дерево не найдено"));
+                .orElseThrow(() -> new ResourceNotFoundException("Дерево не найдено"));
     }
 
     @Transactional
@@ -192,10 +194,10 @@ public class TreeService {
 
     public void acceptInvitation(String token, Long currentUserId) throws AccessDeniedException {
         Invitation invitation = invitationRepository.findByToken(token)
-                .orElseThrow(() -> new RuntimeException("Неверная или просроченная ссылка"));
+                .orElseThrow(() -> new ResourceNotFoundException("Неверная или просроченная ссылка"));
 
         if (invitation.getExpiresAt().isBefore(Instant.now())) {
-            throw new RuntimeException("Срок действия приглашения истёк");
+            throw new BusinessException("Срок действия приглашения истёк");
         }
 
         com.project.familytree.auth.models.User currentUser = userService.findById(currentUserId);
@@ -255,7 +257,7 @@ public class TreeService {
         }
 
         Person person = personRepository.findById(personId)
-                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+                .orElseThrow(() -> new ResourceNotFoundException("Персона не найдена"));
 
         if (!person.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
@@ -271,7 +273,7 @@ public class TreeService {
         }
 
         Person person = personRepository.findById(personId)
-                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+                .orElseThrow(() -> new ResourceNotFoundException("Персона не найдена"));
 
         if (!person.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
@@ -297,7 +299,7 @@ public class TreeService {
         }
 
         Person person = personRepository.findById(personId)
-                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+                .orElseThrow(() -> new ResourceNotFoundException("Персона не найдена"));
 
         if (!person.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
@@ -322,9 +324,9 @@ public class TreeService {
         }
 
         Person person1 = personRepository.findById(request.getPerson1Id())
-                .orElseThrow(() -> new RuntimeException("Персона 1 не найдена"));
+                .orElseThrow(() -> new ResourceNotFoundException("Персона 1 не найдена"));
         Person person2 = personRepository.findById(request.getPerson2Id())
-                .orElseThrow(() -> new RuntimeException("Персона 2 не найдена"));
+                .orElseThrow(() -> new ResourceNotFoundException("Персона 2 не найдена"));
 
         if (!person1.getTree().getId().equals(treeId) || !person2.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Персоны принадлежат разным деревьям");
@@ -335,7 +337,7 @@ public class TreeService {
                 .findByTreeIdAndPersonsAndType(treeId, request.getPerson1Id(), request.getPerson2Id(), request.getType())
                 .isPresent();
         if (exists) {
-            throw new RuntimeException("Такая связь уже существует");
+            throw new BusinessException("Такая связь уже существует");
         }
 
         Tree tree = getById(treeId);
@@ -351,7 +353,7 @@ public class TreeService {
 
         Relationship relationship = relationshipRepository
                 .findByTreeIdAndPersonsAndType(treeId, request.getPerson1Id(), request.getPerson2Id(), request.getType())
-                .orElseThrow(() -> new RuntimeException("Связь не найдена"));
+                .orElseThrow(() -> new ResourceNotFoundException("Связь не найдена"));
 
         relationshipRepository.delete(relationship);
     }
@@ -377,7 +379,7 @@ public class TreeService {
         }
 
         Person person = personRepository.findById(personId)
-                .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+                .orElseThrow(() -> new ResourceNotFoundException("Персона не найдена"));
 
         if (!person.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");

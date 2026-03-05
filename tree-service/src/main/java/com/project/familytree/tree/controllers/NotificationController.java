@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.AccessDeniedException;
 import java.util.List;
 import java.util.Map;
 
@@ -58,7 +59,7 @@ public class NotificationController {
     @Operation(summary = "Отметить уведомление как прочитанное",
                description = "Помечает одно уведомление как прочитанное.")
     public ResponseEntity<CustomApiResponse<NotificationDTO>> markAsRead(
-            @PathVariable Long notificationId) {
+            @PathVariable Long notificationId) throws AccessDeniedException {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
         log.info("Marking notification {} as read for user {}", notificationId, userId);
@@ -83,7 +84,7 @@ public class NotificationController {
     @Operation(summary = "Удалить уведомление",
                description = "Удаляет уведомление текущего пользователя.")
     public ResponseEntity<CustomApiResponse<String>> deleteNotification(
-            @PathVariable Long notificationId) {
+            @PathVariable Long notificationId) throws AccessDeniedException {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
         log.info("Deleting notification {} for user {}", notificationId, userId);
