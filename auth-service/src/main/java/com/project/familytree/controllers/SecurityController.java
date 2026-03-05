@@ -308,11 +308,16 @@ public class SecurityController {
     @PostMapping("/resend-verification")
     @Operation(
             summary = "Повторная отправка письма с подтверждением email",
-            description = "Отправляет новое письмо с токеном подтверждения, если email ещё не подтверждён."
+            description = "Отправляет новое письмо с токеном подтверждения, если email ещё не подтверждён. " +
+                          "Ответ всегда одинаковый — не раскрывает наличие email в системе."
     )
     public ResponseEntity<CustomApiResponse<String>> resendVerification(
             @Valid @RequestBody PasswordResetRequest request) {
-        userService.resendVerification(request.getEmail());
-        return ResponseEntity.ok(CustomApiResponse.success("Письмо с подтверждением отправлено"));
+        try {
+            userService.resendVerification(request.getEmail());
+        } catch (Exception ignored) {
+            // Намеренно игнорируем — не раскрываем наличие email в системе
+        }
+        return ResponseEntity.ok(CustomApiResponse.success("Если email зарегистрирован и не подтверждён, письмо будет отправлено"));
     }
 }

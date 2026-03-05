@@ -3,6 +3,7 @@ package com.project.familytree.tree.services;
 import com.project.familytree.auth.models.User;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.MediaFileDTO;
+import com.project.familytree.tree.exceptions.BusinessException;
 import com.project.familytree.tree.impls.MediaFileType;
 import com.project.familytree.tree.models.MediaFile;
 import com.project.familytree.tree.models.Person;
@@ -23,6 +24,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -37,6 +39,16 @@ import java.util.UUID;
 public class MediaFileService {
 
     private static final Logger log = LoggerFactory.getLogger(MediaFileService.class);
+
+    /** Whitelist of allowed file extensions. Executable and script types are blocked. */
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
+            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg",
+            ".pdf",
+            ".mp4", ".mov", ".avi", ".mkv", ".webm",
+            ".mp3", ".wav", ".ogg", ".flac",
+            ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".txt", ".rtf"
+    );
 
     private final MediaFileRepository mediaFileRepository;
     private final PersonRepository personRepository;
@@ -84,6 +96,13 @@ public class MediaFileService {
         // Генерируем S3-ключ: trees/{treeId}/media/{uuid}.ext
         String originalFilename = file.getOriginalFilename();
         String extension = extractExtension(originalFilename);
+
+        // Validate extension against whitelist
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new BusinessException("Недопустимый тип файла: " + extension +
+                    ". Разрешены: изображения, PDF, видео, аудио, документы Office, текстовые файлы.");
+        }
+
         String s3Key = "trees/" + treeId + "/media/" + UUID.randomUUID() + extension;
 
         // Загружаем в S3

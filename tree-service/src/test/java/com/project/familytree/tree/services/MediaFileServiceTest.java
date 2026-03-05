@@ -3,6 +3,7 @@ package com.project.familytree.tree.services;
 import com.project.familytree.auth.models.User;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.MediaFileDTO;
+import com.project.familytree.tree.exceptions.BusinessException;
 import com.project.familytree.tree.impls.Gender;
 import com.project.familytree.tree.impls.MediaFileType;
 import com.project.familytree.tree.models.MediaFile;
@@ -106,6 +107,43 @@ class MediaFileServiceTest {
 
         verify(s3Service).upload(anyString(), any(), anyString(), anyLong());
         verify(mediaFileRepository).save(any(MediaFile.class));
+    }
+
+    @Test
+    @DisplayName("uploadFile: бросает BusinessException для запрещённого расширения (.exe)")
+    void uploadFile_throwsForBlockedExtension() {
+        when(treeService.canEdit(1L, 5L)).thenReturn(true);
+        when(treeRepository.findById(1L)).thenReturn(Optional.of(tree));
+        when(personRepository.findById(10L)).thenReturn(Optional.of(person));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "malware.exe", "application/octet-stream", "fake-content".getBytes()
+        );
+
+        assertThatThrownBy(() -> mediaFileService.uploadFile(1L, 10L, file, MediaFileType.DOCUMENT, null, 5L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Недопустимый тип файла");
+
+        verifyNoInteractions(s3Service);
+        verifyNoInteractions(mediaFileRepository);
+    }
+
+    @Test
+    @DisplayName("uploadFile: бросает BusinessException для .sh скрипта")
+    void uploadFile_throwsForShellScript() {
+        when(treeService.canEdit(1L, 5L)).thenReturn(true);
+        when(treeRepository.findById(1L)).thenReturn(Optional.of(tree));
+        when(personRepository.findById(10L)).thenReturn(Optional.of(person));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "script.sh", "text/plain", "#!/bin/bash".getBytes()
+        );
+
+        assertThatThrownBy(() -> mediaFileService.uploadFile(1L, 10L, file, MediaFileType.DOCUMENT, null, 5L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Недопустимый тип файла");
+
+        verifyNoInteractions(s3Service);
     }
 
     @Test

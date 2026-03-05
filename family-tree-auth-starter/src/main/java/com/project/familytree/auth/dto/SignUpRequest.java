@@ -28,7 +28,7 @@ public class SignUpRequest {
 
     @Schema(description = "Пароль пользователя")
     @NotBlank(message = "Пароль обязателен")
-    @Size(min = 6, max = 100, message = "Пароль должен быть от 6 до 100 символов")
+    @Size(min = 8, max = 100, message = "Пароль должен содержать минимум 8 символов")
     private String password;
 
     public SignUpRequest() {

@@ -239,22 +239,25 @@ class SecurityControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data").value("Письмо с подтверждением отправлено"));
+                .andExpect(jsonPath("$.data").value(
+                        "Если email зарегистрирован и не подтверждён, письмо будет отправлено"));
     }
 
     @Test
-    @DisplayName("POST /auth/resend-verification → 400 если email уже подтверждён")
-    void resendVerification_returns400IfAlreadyVerified() throws Exception {
+    @DisplayName("POST /auth/resend-verification → всегда 200 (не раскрывает наличие email)")
+    void resendVerification_alwaysReturns200EvenIfEmailNotFound() throws Exception {
         PasswordResetRequest request = new PasswordResetRequest();
-        request.setEmail("ivan@test.com");
+        request.setEmail("unknown@test.com");
 
+        // Даже если email не найден или уже подтверждён — всегда 200
         doThrow(new InvalidRequestException("Email уже подтверждён"))
-                .when(userService).resendVerification("ivan@test.com");
+                .when(userService).resendVerification("unknown@test.com");
 
         mockMvc.perform(post("/auth/resend-verification")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Email уже подтверждён"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(
+                        "Если email зарегистрирован и не подтверждён, письмо будет отправлено"));
     }
 }

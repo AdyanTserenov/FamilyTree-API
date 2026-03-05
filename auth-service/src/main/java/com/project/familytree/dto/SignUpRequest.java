@@ -25,8 +25,8 @@ public class SignUpRequest {
     @Email(message = "Некорректный формат email")
     private String email;
 
-    @Schema(description = "Пароль для входа", example = "test123")
+    @Schema(description = "Пароль для входа", example = "test12345")
     @NotBlank(message = "Пароль обязателен")
-    @Size(min = 6, message = "Пароль должен быть больше 6 символов")
+    @Size(min = 8, message = "Пароль должен содержать минимум 8 символов")
     private String password;
 }

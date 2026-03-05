@@ -23,7 +23,7 @@ services:
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       # JWT (must match tree-service)
-      FAMILY_AUTH_JWT_SECRET: ${JWT_SECRET:-mySuperSecretKeyThatIsLongEnoughForHMACSHA256Algorithm123456789}
+      FAMILY_AUTH_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET env var is required}
       FAMILY_AUTH_JWT_LIFETIME: 3600000
       # Mail
       SPRING_MAIL_HOST: ${MAIL_HOST:-smtp.yandex.ru}
@@ -72,7 +72,7 @@ services:
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       # JWT (must match auth-service)
-      FAMILY_AUTH_JWT_SECRET: ${JWT_SECRET:-mySuperSecretKeyThatIsLongEnoughForHMACSHA256Algorithm123456789}
+      FAMILY_AUTH_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET env var is required}
       FAMILY_AUTH_JWT_LIFETIME: 3600000
       # Mail (same credentials as auth-service)
       SPRING_MAIL_HOST: ${MAIL_HOST:-smtp.yandex.ru}
