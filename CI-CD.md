@@ -91,6 +91,71 @@ curl http://localhost:8081/auth/ping
 
 ---
 
+## Шаг 1.7 — Настройка `.env` на VM
+
+> Выполняется **один раз** вручную после клонирования репозитория. Файл `.env` не хранится в git — его нужно создать на VM вручную.
+
+### Минимальный `.env` для production
+
+```bash
+ssh atserenov@158.160.46.186
+cat > ~/vkr/FamilyTree-API/.env << 'EOF'
+# JWT
+JWT_SECRET=<сгенерируйте_случайную_строку_минимум_64_символа>
+
+# Database
+POSTGRES_DB=familytree
+POSTGRES_USER=familytree
+POSTGRES_PASSWORD=<надёжный_пароль>
+
+# App base URL (используется в ссылках в письмах)
+APP_BASE_URL=http://158.160.46.186:8081
+
+# CORS — список разрешённых origins через запятую (без пробелов)
+# Должен совпадать с адресом, с которого браузер открывает фронтенд
+CORS_ALLOWED_ORIGINS=http://158.160.46.186:3000
+
+# S3 / Object Storage
+S3_ENDPOINT=<endpoint>
+S3_ACCESS_KEY=<access_key>
+S3_SECRET_KEY=<secret_key>
+S3_BUCKET=<bucket_name>
+S3_REGION=<region>
+
+# Mail
+MAIL_HOST=<smtp_host>
+MAIL_PORT=465
+MAIL_USERNAME=<email>
+MAIL_PASSWORD=<password>
+EOF
+```
+
+> **Важно:** `CORS_ALLOWED_ORIGINS` — это **отдельная** переменная от `APP_BASE_URL`.
+> - `APP_BASE_URL` используется только для формирования ссылок в письмах (confirm email, reset password).
+> - `CORS_ALLOWED_ORIGINS` — список origins, которым разрешено делать cross-origin запросы к API.
+>   Если фронтенд доступен по нескольким адресам, перечислите их через запятую:
+>   ```
+>   CORS_ALLOWED_ORIGINS=http://158.160.46.186:3000,https://yourdomain.com
+>   ```
+
+### Проверка после создания `.env`
+
+```bash
+# Убедитесь что переменная подхватывается
+cd ~/vkr/FamilyTree-API
+grep CORS_ALLOWED_ORIGINS .env
+
+# Перезапустите сервисы чтобы применить изменения
+docker compose up -d --no-deps auth-service tree-service
+
+# Проверьте CORS-заголовок в ответе
+curl -v -H "Origin: http://158.160.46.186:3000" \
+     http://localhost:8081/auth/ping 2>&1 | grep -i "access-control"
+# Ожидаемый вывод: Access-Control-Allow-Origin: http://158.160.46.186:3000
+```
+
+---
+
 ## Шаг 2 — Настройка GitHub Secrets
 
 Нужно добавить **одинаковые** секреты в **оба** репозитория.
@@ -253,6 +318,39 @@ docker network create familytree-net
 cd ~/vkr/FamilyTree-Frontend
 docker compose up -d
 ```
+
+### После логина GET /api/trees возвращает 401 (CORS)
+
+**Симптом:** В Network tab браузера запрос к API не содержит заголовка `Authorization`, хотя логин прошёл успешно.
+
+**Причина:** Браузер отправляет `Origin: http://<IP>:3000`. Если этот origin не входит в `CORS_ALLOWED_ORIGINS` — preflight отклоняется, браузер блокирует запрос целиком, и токен не отправляется.
+
+**Решение:**
+
+```bash
+# 1. Проверьте текущее значение
+grep CORS_ALLOWED_ORIGINS ~/vkr/FamilyTree-API/.env
+
+# 2. Если переменной нет или значение неверное — добавьте/исправьте
+#    (замените IP на реальный адрес вашего сервера)
+echo 'CORS_ALLOWED_ORIGINS=http://158.160.46.186:3000' >> ~/vkr/FamilyTree-API/.env
+
+# 3. Перезапустите сервисы
+cd ~/vkr/FamilyTree-API
+docker compose up -d --no-deps auth-service tree-service
+
+# 4. Проверьте CORS-заголовок
+curl -v -H "Origin: http://158.160.46.186:3000" \
+     http://localhost:8081/auth/ping 2>&1 | grep -i "access-control"
+# Ожидаемый вывод: Access-Control-Allow-Origin: http://158.160.46.186:3000
+```
+
+> Если фронтенд доступен по нескольким адресам (например, IP и домен), перечислите их через запятую **без пробелов**:
+> ```
+> CORS_ALLOWED_ORIGINS=http://158.160.46.186:3000,https://yourdomain.com
+> ```
+
+---
 
 ### git pull требует авторизацию (приватный репозиторий)
 
