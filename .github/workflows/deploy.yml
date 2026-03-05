@@ -22,6 +22,11 @@ jobs:
           script: |
             set -e
 
+            echo "=== [0/5] Firewall: block direct access to Spring Boot ports ==="
+            sudo ufw deny 8080 2>/dev/null || true
+            sudo ufw deny 8081 2>/dev/null || true
+            echo "Firewall rules applied (8080, 8081 blocked from outside)"
+
             echo "=== [1/5] Pulling latest API code ==="
             cd ~/vkr/FamilyTree-API
             git pull origin main
