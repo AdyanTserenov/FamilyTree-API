@@ -77,6 +77,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Jackson JSR310 — required for java.time.Instant serialization in DTOs -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <!-- Spring Web (RestTemplate для AI-интеграции) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
