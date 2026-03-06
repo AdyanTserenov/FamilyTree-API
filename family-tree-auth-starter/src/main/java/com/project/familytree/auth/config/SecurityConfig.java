@@ -2,6 +2,7 @@ package com.project.familytree.auth.config;
 
 import com.project.familytree.auth.security.TokenFilter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -39,11 +40,13 @@ public class SecurityConfig {
     }
 
     @Bean
+    @ConditionalOnMissingBean(AuthenticationManager.class)
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
     @Bean
+    @ConditionalOnMissingBean(CorsConfigurationSource.class)
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         List<String> origins = Arrays.stream(corsAllowedOrigins.split(","))
@@ -60,9 +63,12 @@ public class SecurityConfig {
     }
 
     @Bean
+    @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                // Disable Spring Security's default headers — nginx sets them to avoid duplicates
+                .headers(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
