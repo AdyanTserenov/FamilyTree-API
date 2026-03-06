@@ -35,6 +35,8 @@ services:
       # CORS allowed origins — comma-separated list of frontend URLs
       # Example: http://158.160.55.234:3000,http://localhost:3000
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      # Email verification — set false to auto-enable users on signup (demo/dev mode)
+      APP_EMAIL_VERIFICATION_REQUIRED: ${APP_EMAIL_VERIFICATION_REQUIRED:-true}
       # Server
       SERVER_PORT: 8081
     volumes:

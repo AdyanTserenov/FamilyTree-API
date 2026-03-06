@@ -10,6 +10,7 @@ import com.project.familytree.repositories.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +25,15 @@ public class UserService implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final MailSenderService mailSenderService;
     private final TokenService tokenService;
+
+    /**
+     * When false, users are auto-enabled on registration (no email verification required).
+     * Set APP_EMAIL_VERIFICATION_REQUIRED=false in .env for demo/dev environments
+     * where SMTP is not configured.
+     * Default: true (email verification required).
+     */
+    @Value("${app.email-verification-required:true}")
+    private boolean emailVerificationRequired;
 
     @Override
     public UserDetails loadUserByUsername(String email) throws EmailNotFoundException {
@@ -60,10 +70,17 @@ public class UserService implements UserDetailsService {
         user.setMiddleName(signUpRequest.getMiddleName());
         user.setEmail(signUpRequest.getEmail());
         user.setPassword(hashed);
-        user.setEnabled(false);
 
-        userRepository.save(user);
-        sendVerifyToken(user.getEmail());
+        if (!emailVerificationRequired) {
+            // Demo/dev mode: skip email verification, auto-enable the user
+            user.setEnabled(true);
+            userRepository.save(user);
+            log.info("Email verification disabled — user {} auto-enabled on registration", signUpRequest.getEmail());
+        } else {
+            user.setEnabled(false);
+            userRepository.save(user);
+            sendVerifyToken(user.getEmail());
+        }
     }
 
     public void sendVerifyToken(String email) {
@@ -73,7 +90,9 @@ public class UserService implements UserDetailsService {
         try {
             mailSenderService.sendCreationEmail(email, token, user.getFirstName());
         } catch (EmailSenderException ex) {
-            userRepository.delete(user);
+            // Do NOT delete the user — they can use "Resend verification" once SMTP is fixed.
+            // Deleting the user on SMTP failure causes data loss and confuses users.
+            log.error("Failed to send verification email to {}: {}", email, ex.getMessage());
             throw new UserRegistrationFailedException("Ошибка регистрации: не удалось отправить письмо с подтверждением", ex);
         }
     }
