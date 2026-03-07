@@ -2,6 +2,7 @@ package com.project.familytree.tree.controllers;
 
 import com.project.familytree.auth.dto.CustomApiResponse;
 import com.project.familytree.auth.services.UserService;
+import com.project.familytree.tree.dto.PersonDTO;
 import com.project.familytree.tree.dto.TreeDTO;
 import com.project.familytree.tree.dto.InviteRequest;
 import com.project.familytree.tree.dto.TreeMemberDTO;
@@ -136,5 +137,36 @@ public class TreeController {
         }
         List<TreeMemberDTO> members = treeService.getMembers(treeId);
         return ResponseEntity.ok(CustomApiResponse.successData(members));
+    }
+
+    @PostMapping("/{treeId}/public-link")
+    @Operation(summary = "Создать публичную ссылку",
+               description = "Генерирует токен публичного доступа к дереву. Требует роль OWNER.")
+    public ResponseEntity<CustomApiResponse<String>> generatePublicLink(
+            @PathVariable Long treeId) throws AccessDeniedException {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        String token = treeService.generatePublicLink(treeId, userId);
+        return ResponseEntity.ok(CustomApiResponse.successData(token));
+    }
+
+    @DeleteMapping("/{treeId}/public-link")
+    @Operation(summary = "Отозвать публичную ссылку",
+               description = "Удаляет токен публичного доступа к дереву. Требует роль OWNER.")
+    public ResponseEntity<CustomApiResponse<String>> revokePublicLink(
+            @PathVariable Long treeId) throws AccessDeniedException {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        treeService.revokePublicLink(treeId, userId);
+        return ResponseEntity.ok(CustomApiResponse.successMessage("Публичная ссылка отозвана"));
+    }
+
+    @GetMapping("/public/{token}")
+    @Operation(summary = "Получить публичное дерево",
+               description = "Возвращает список персон дерева по публичному токену. Аутентификация не требуется.")
+    public ResponseEntity<CustomApiResponse<List<PersonDTO>>> getPublicTree(
+            @PathVariable String token) {
+        List<PersonDTO> persons = treeService.getPublicTree(token);
+        return ResponseEntity.ok(CustomApiResponse.successData(persons));
     }
 }

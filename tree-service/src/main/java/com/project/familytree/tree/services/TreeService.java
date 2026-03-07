@@ -98,7 +98,7 @@ public class TreeService {
         Tree tree = getById(treeId);
         tree.setName(newName);
         tree = treeRepository.save(tree);
-        return new TreeDTO(tree.getId(), tree.getName(), tree.getCreatedAt());
+        return new TreeDTO(tree.getId(), tree.getName(), tree.getCreatedAt(), TreeRole.OWNER, tree.getPublicLinkToken());
     }
 
     @Transactional
@@ -144,7 +144,7 @@ public class TreeService {
         return memberships.stream()
                 .map(tm -> {
                     Tree t = tm.getTree();
-                    return new TreeDTO(t.getId(), t.getName(), t.getCreatedAt(), tm.getRole());
+                    return new TreeDTO(t.getId(), t.getName(), t.getCreatedAt(), tm.getRole(), t.getPublicLinkToken());
                 })
                 .toList();
     }
@@ -158,6 +158,40 @@ public class TreeService {
                             u.getId(), u.getFirstName(), u.getLastName(), u.getMiddleName(),
                             u.getEmail(), tm.getRole(), tm.getCreatedAt());
                 })
+                .toList();
+    }
+
+    // ─── Public link ─────────────────────────────────────────────────────────────
+
+    @Transactional
+    public String generatePublicLink(Long treeId, Long userId) throws AccessDeniedException {
+        if (!isOwner(treeId, userId)) {
+            throw new AccessDeniedException("Только владелец может управлять публичной ссылкой");
+        }
+        Tree tree = getById(treeId);
+        if (tree.getPublicLinkToken() == null) {
+            tree.setPublicLinkToken(UUID.randomUUID().toString());
+            treeRepository.save(tree);
+        }
+        return tree.getPublicLinkToken();
+    }
+
+    @Transactional
+    public void revokePublicLink(Long treeId, Long userId) throws AccessDeniedException {
+        if (!isOwner(treeId, userId)) {
+            throw new AccessDeniedException("Только владелец может управлять публичной ссылкой");
+        }
+        Tree tree = getById(treeId);
+        tree.setPublicLinkToken(null);
+        treeRepository.save(tree);
+    }
+
+    public List<PersonDTO> getPublicTree(String token) {
+        Tree tree = treeRepository.findByPublicLinkToken(token)
+                .orElseThrow(() -> new ResourceNotFoundException("Дерево не найдено или ссылка недействительна"));
+        List<Person> persons = personRepository.findByTreeIdOrderByLastNameAscFirstNameAsc(tree.getId());
+        return persons.stream()
+                .map(p -> convertToDTO(p, tree.getId()))
                 .toList();
     }
 

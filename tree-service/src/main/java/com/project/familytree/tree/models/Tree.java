@@ -19,6 +19,9 @@ public class Tree {
     @CreationTimestamp
     private Instant createdAt;
 
+    @Column(name = "public_link_token", unique = true)
+    private String publicLinkToken;
+
     public Tree() {
     }
 
@@ -44,5 +47,13 @@ public class Tree {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getPublicLinkToken() {
+        return publicLinkToken;
+    }
+
+    public void setPublicLinkToken(String publicLinkToken) {
+        this.publicLinkToken = publicLinkToken;
     }
 }

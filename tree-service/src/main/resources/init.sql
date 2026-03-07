@@ -114,6 +114,9 @@ CREATE INDEX IF NOT EXISTS idx_media_files_person_id ON media_files(person_id);
 -- Avatar URL for persons (added in v2)
 ALTER TABLE persons ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512);
 
+-- Public link token for trees (added in v3)
+ALTER TABLE trees ADD COLUMN IF NOT EXISTS public_link_token VARCHAR(255) UNIQUE;
+
 -- Comments on persons (threaded, soft-delete)
 CREATE TABLE IF NOT EXISTS comments (
     id                BIGSERIAL PRIMARY KEY,
