@@ -45,7 +45,7 @@ public class MediaFileController {
             @PathVariable Long treeId,
             @PathVariable Long personId,
             @RequestParam("file") MultipartFile file,
-            @Parameter(description = "Тип файла: PHOTO, DOCUMENT, VIDEO, AUDIO")
+            @Parameter(description = "Тип файла: IMAGE, DOCUMENT, VIDEO, AUDIO")
             @RequestParam("fileType") MediaFileType fileType,
             @RequestParam(value = "description", required = false) String description) throws AccessDeniedException, IOException {
 

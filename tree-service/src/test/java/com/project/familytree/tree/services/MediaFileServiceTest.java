@@ -71,7 +71,7 @@ class MediaFileServiceTest {
         mediaFile = new MediaFile(
                 person, tree, "photo.jpg",
                 "trees/1/media/uuid.jpg",
-                MediaFileType.PHOTO, 1024L,
+                MediaFileType.IMAGE, 1024L,
                 "Описание", uploader
         );
         mediaFile.setId(100L);
@@ -99,10 +99,10 @@ class MediaFileServiceTest {
                 "file", "photo.jpg", "image/jpeg", "fake-image-content".getBytes()
         );
 
-        MediaFileDTO result = mediaFileService.uploadFile(1L, 10L, file, MediaFileType.PHOTO, "Фото", 5L);
+        MediaFileDTO result = mediaFileService.uploadFile(1L, 10L, file, MediaFileType.IMAGE, "Фото", 5L);
 
         assertThat(result.getId()).isEqualTo(200L);
-        assertThat(result.getFileType()).isEqualTo(MediaFileType.PHOTO);
+        assertThat(result.getFileType()).isEqualTo(MediaFileType.IMAGE);
         assertThat(result.getUrl()).isEqualTo("https://s3.example.com/file");
 
         verify(s3Service).upload(anyString(), any(), anyString(), anyLong());
@@ -155,7 +155,7 @@ class MediaFileServiceTest {
                 "file", "photo.jpg", "image/jpeg", new byte[0]
         );
 
-        assertThatThrownBy(() -> mediaFileService.uploadFile(1L, 10L, file, MediaFileType.PHOTO, null, 5L))
+        assertThatThrownBy(() -> mediaFileService.uploadFile(1L, 10L, file, MediaFileType.IMAGE, null, 5L))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("прав");
 
@@ -172,7 +172,7 @@ class MediaFileServiceTest {
                 "file", "photo.jpg", "image/jpeg", new byte[0]
         );
 
-        assertThatThrownBy(() -> mediaFileService.uploadFile(1L, 10L, file, MediaFileType.PHOTO, null, 5L))
+        assertThatThrownBy(() -> mediaFileService.uploadFile(1L, 10L, file, MediaFileType.IMAGE, null, 5L))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("не найдено");
     }
@@ -228,7 +228,7 @@ class MediaFileServiceTest {
         otherTree.setId(99L);
         MediaFile fileInOtherTree = new MediaFile(
                 null, otherTree, "other.jpg", "trees/99/media/other.jpg",
-                MediaFileType.PHOTO, 512L, null, uploader
+                MediaFileType.IMAGE, 512L, null, uploader
         );
         fileInOtherTree.setId(200L);
 
@@ -295,7 +295,7 @@ class MediaFileServiceTest {
         assertThat(dto.getPersonId()).isEqualTo(10L);
         assertThat(dto.getTreeId()).isEqualTo(1L);
         assertThat(dto.getFileName()).isEqualTo("photo.jpg");
-        assertThat(dto.getFileType()).isEqualTo(MediaFileType.PHOTO);
+        assertThat(dto.getFileType()).isEqualTo(MediaFileType.IMAGE);
         assertThat(dto.getFileSize()).isEqualTo(1024L);
         assertThat(dto.getDescription()).isEqualTo("Описание");
         assertThat(dto.getUploadedById()).isEqualTo(5L);
