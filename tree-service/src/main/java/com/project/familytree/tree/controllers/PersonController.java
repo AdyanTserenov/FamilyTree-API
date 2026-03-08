@@ -3,6 +3,7 @@ package com.project.familytree.tree.controllers;
 import com.project.familytree.auth.dto.CustomApiResponse;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.PersonDTO;
+import com.project.familytree.tree.dto.PersonHistoryDTO;
 import com.project.familytree.tree.dto.PersonRelationshipRequest;
 import com.project.familytree.tree.dto.PersonRequest;
 import com.project.familytree.tree.services.TreeService;
@@ -185,6 +186,21 @@ public class PersonController {
         List<PersonDTO> results = treeService.searchPersons(treeId, query, userId);
         log.info("Found {} persons matching '{}'", results.size(), query);
         return ResponseEntity.ok(CustomApiResponse.successData(results));
+    }
+
+    @GetMapping("/{personId}/history")
+    @Operation(summary = "Получить историю изменений персоны",
+               description = "Возвращает список изменений персоны (до 50 записей). Требует роль EDITOR или OWNER.")
+    public ResponseEntity<CustomApiResponse<List<PersonHistoryDTO>>> getPersonHistory(
+            @PathVariable Long treeId,
+            @PathVariable Long personId) throws AccessDeniedException {
+
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        log.info("Getting history for person {} in tree {} by user {}", personId, treeId, userId);
+
+        List<PersonHistoryDTO> history = treeService.getPersonHistory(treeId, personId, userId);
+        return ResponseEntity.ok(CustomApiResponse.successData(history));
     }
 
     @PostMapping(value = "/{personId}/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

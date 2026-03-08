@@ -146,3 +146,19 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(user_id, is_read);
+
+-- Change history for persons (п.6.5 ТЗ)
+CREATE TABLE IF NOT EXISTS person_history (
+    id         BIGSERIAL PRIMARY KEY,
+    person_id  BIGINT       NOT NULL,
+    tree_id    BIGINT       NOT NULL,
+    user_id    BIGINT       NOT NULL,
+    user_name  VARCHAR(255),
+    action     VARCHAR(20)  NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE')),
+    field_name VARCHAR(100),
+    old_value  TEXT,
+    new_value  TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_person_history_person_tree ON person_history(person_id, tree_id);

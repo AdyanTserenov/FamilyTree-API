@@ -3,20 +3,24 @@ package com.project.familytree.tree.services;
 import com.project.familytree.auth.services.MailSenderService;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.PersonDTO;
+import com.project.familytree.tree.dto.PersonHistoryDTO;
 import com.project.familytree.tree.dto.PersonRelationshipRequest;
 import com.project.familytree.tree.dto.PersonRequest;
 import com.project.familytree.tree.dto.RelationshipDTO;
 import com.project.familytree.tree.dto.TreeDTO;
 import com.project.familytree.tree.dto.TreeMemberDTO;
+import com.project.familytree.tree.impls.HistoryAction;
 import com.project.familytree.tree.impls.RelationshipType;
 import com.project.familytree.tree.impls.TreeRole;
 import com.project.familytree.tree.models.Invitation;
 import com.project.familytree.tree.models.Person;
+import com.project.familytree.tree.models.PersonHistory;
 import com.project.familytree.tree.models.Relationship;
 import com.project.familytree.tree.models.Tree;
 import com.project.familytree.tree.models.TreeMembership;
 import com.project.familytree.tree.repositories.InvitationRepository;
 import com.project.familytree.tree.repositories.MediaFileRepository;
+import com.project.familytree.tree.repositories.PersonHistoryRepository;
 import com.project.familytree.tree.repositories.PersonRepository;
 import com.project.familytree.tree.repositories.RelationshipRepository;
 import com.project.familytree.tree.repositories.TreeMembershipRepository;
@@ -32,6 +36,7 @@ import java.nio.file.AccessDeniedException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -46,6 +51,7 @@ public class TreeService {
     private final RelationshipRepository relationshipRepository;
     private final MediaFileRepository mediaFileRepository;
     private final S3Service s3Service;
+    private final PersonHistoryRepository personHistoryRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:3000}")
     private String baseUrl;
@@ -58,7 +64,8 @@ public class TreeService {
                        PersonRepository personRepository,
                        RelationshipRepository relationshipRepository,
                        MediaFileRepository mediaFileRepository,
-                       S3Service s3Service) {
+                       S3Service s3Service,
+                       PersonHistoryRepository personHistoryRepository) {
         this.userService = userService;
         this.treeRepository = treeRepository;
         this.membershipRepository = membershipRepository;
@@ -68,6 +75,7 @@ public class TreeService {
         this.relationshipRepository = relationshipRepository;
         this.mediaFileRepository = mediaFileRepository;
         this.s3Service = s3Service;
+        this.personHistoryRepository = personHistoryRepository;
     }
 
     // ─── Tree management ────────────────────────────────────────────────────────
@@ -261,7 +269,14 @@ public class TreeService {
         person.setDeathPlace(request.getDeathPlace());
         person.setBiography(request.getBiography());
 
-        return personRepository.save(person);
+        person = personRepository.save(person);
+
+        // Record CREATE history
+        com.project.familytree.auth.models.User user = userService.findById(userId);
+        String userName = user.getFirstName() + " " + user.getLastName();
+        recordHistory(person.getId(), treeId, userId, userName, HistoryAction.CREATE, null, null, null);
+
+        return person;
     }
 
     public List<PersonDTO> getPersons(Long treeId, Long userId) throws AccessDeniedException {
@@ -313,6 +328,30 @@ public class TreeService {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
         }
 
+        com.project.familytree.auth.models.User user = userService.findById(userId);
+        String userName = user.getFirstName() + " " + user.getLastName();
+
+        // Record field-level changes
+        recordFieldChange(personId, treeId, userId, userName, "firstName",
+                person.getFirstName(), request.getFirstName());
+        recordFieldChange(personId, treeId, userId, userName, "lastName",
+                person.getLastName(), request.getLastName());
+        recordFieldChange(personId, treeId, userId, userName, "middleName",
+                person.getMiddleName(), request.getMiddleName());
+        recordFieldChange(personId, treeId, userId, userName, "gender",
+                person.getGender() != null ? person.getGender().name() : null,
+                request.getGender() != null ? request.getGender().name() : null);
+        recordFieldChange(personId, treeId, userId, userName, "birthDate",
+                person.getBirthDate() != null ? person.getBirthDate().toString() : null,
+                request.getBirthDate() != null ? request.getBirthDate().toString() : null);
+        recordFieldChange(personId, treeId, userId, userName, "deathDate",
+                person.getDeathDate() != null ? person.getDeathDate().toString() : null,
+                request.getDeathDate() != null ? request.getDeathDate().toString() : null);
+        recordFieldChange(personId, treeId, userId, userName, "birthPlace",
+                person.getBirthPlace(), request.getBirthPlace());
+        recordFieldChange(personId, treeId, userId, userName, "biography",
+                person.getBiography(), request.getBiography());
+
         person.setFirstName(request.getFirstName());
         person.setLastName(request.getLastName());
         person.setMiddleName(request.getMiddleName());
@@ -338,6 +377,11 @@ public class TreeService {
         if (!person.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Персона не принадлежит этому дереву");
         }
+
+        // Record DELETE history before deleting
+        com.project.familytree.auth.models.User user = userService.findById(userId);
+        String userName = user.getFirstName() + " " + user.getLastName();
+        recordHistory(personId, treeId, userId, userName, HistoryAction.DELETE, null, null, null);
 
         // Удаляем все связи персоны
         List<Relationship> relationships = relationshipRepository.findByTreeIdAndPersonId(treeId, personId);
@@ -444,6 +488,56 @@ public class TreeService {
         person.setAvatarUrl(s3Key);
         person = personRepository.save(person);
         return convertToDTO(person, treeId);
+    }
+
+    // ─── History ─────────────────────────────────────────────────────────────────
+
+    public List<PersonHistoryDTO> getPersonHistory(Long treeId, Long personId, Long userId) throws AccessDeniedException {
+        if (!canEdit(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на просмотр истории");
+        }
+
+        List<PersonHistory> history = personHistoryRepository
+                .findByPersonIdAndTreeIdOrderByCreatedAtDesc(personId, treeId);
+
+        return history.stream()
+                .limit(50)
+                .map(h -> new PersonHistoryDTO(
+                        h.getId(),
+                        h.getAction().name(),
+                        h.getFieldName(),
+                        h.getOldValue(),
+                        h.getNewValue(),
+                        h.getUserName(),
+                        h.getCreatedAt() != null ? h.getCreatedAt().toString() : null
+                ))
+                .toList();
+    }
+
+    private void recordHistory(Long personId, Long treeId, Long userId, String userName,
+                               HistoryAction action, String fieldName,
+                               String oldValue, String newValue) {
+        PersonHistory history = new PersonHistory();
+        history.setPersonId(personId);
+        history.setTreeId(treeId);
+        history.setUserId(userId);
+        history.setUserName(userName);
+        history.setAction(action);
+        history.setFieldName(fieldName);
+        history.setOldValue(oldValue);
+        history.setNewValue(newValue);
+        personHistoryRepository.save(history);
+    }
+
+    private void recordFieldChange(Long personId, Long treeId, Long userId, String userName,
+                                   String fieldName, String oldValue, String newValue) {
+        // Normalize empty strings to null for comparison
+        String normalizedOld = (oldValue != null && oldValue.isBlank()) ? null : oldValue;
+        String normalizedNew = (newValue != null && newValue.isBlank()) ? null : newValue;
+        if (!Objects.equals(normalizedOld, normalizedNew)) {
+            recordHistory(personId, treeId, userId, userName, HistoryAction.UPDATE,
+                    fieldName, normalizedOld, normalizedNew);
+        }
     }
 
     // ─── DTO conversion ──────────────────────────────────────────────────────────
