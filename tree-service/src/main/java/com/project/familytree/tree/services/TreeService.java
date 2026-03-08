@@ -550,7 +550,19 @@ public class TreeService {
         List<Relationship> relationships = relationshipRepository.findByTreeIdAndPersonId(treeId, person.getId());
 
         List<RelationshipDTO> relationshipDTOs = relationships.stream()
-                .map(r -> new RelationshipDTO(r.getId(), r.getPerson1().getId(), r.getPerson2().getId(), r.getType()))
+                .map(r -> new RelationshipDTO(
+                        r.getId(),
+                        r.getPerson1().getId(),
+                        r.getPerson2().getId(),
+                        r.getType(),
+                        new RelationshipDTO.PersonSummary(
+                                r.getPerson1().getId(),
+                                r.getPerson1().getFirstName(),
+                                r.getPerson1().getLastName()),
+                        new RelationshipDTO.PersonSummary(
+                                r.getPerson2().getId(),
+                                r.getPerson2().getFirstName(),
+                                r.getPerson2().getLastName())))
                 .toList();
 
         // Если avatarUrl — S3-ключ (начинается с "trees/"), генерируем presigned URL

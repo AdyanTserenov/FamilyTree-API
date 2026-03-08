@@ -18,6 +18,52 @@ public class RelationshipDTO {
     @Schema(description = "Тип связи: PARENT_CHILD или PARTNERSHIP")
     private RelationshipType type;
 
+    @Schema(description = "Краткие данные первой персоны")
+    private PersonSummary person1;
+
+    @Schema(description = "Краткие данные второй персоны")
+    private PersonSummary person2;
+
+    /** Краткое представление персоны для отображения в связях */
+    public static class PersonSummary {
+        private Long id;
+        private String firstName;
+        private String lastName;
+
+        public PersonSummary() {
+        }
+
+        public PersonSummary(Long id, String firstName, String lastName) {
+            this.id = id;
+            this.firstName = firstName;
+            this.lastName = lastName;
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getFirstName() {
+            return firstName;
+        }
+
+        public void setFirstName(String firstName) {
+            this.firstName = firstName;
+        }
+
+        public String getLastName() {
+            return lastName;
+        }
+
+        public void setLastName(String lastName) {
+            this.lastName = lastName;
+        }
+    }
+
     public RelationshipDTO() {
     }
 
@@ -26,6 +72,16 @@ public class RelationshipDTO {
         this.person1Id = person1Id;
         this.person2Id = person2Id;
         this.type = type;
+    }
+
+    public RelationshipDTO(Long id, Long person1Id, Long person2Id, RelationshipType type,
+                           PersonSummary person1, PersonSummary person2) {
+        this.id = id;
+        this.person1Id = person1Id;
+        this.person2Id = person2Id;
+        this.type = type;
+        this.person1 = person1;
+        this.person2 = person2;
     }
 
     public Long getId() {
@@ -58,5 +114,21 @@ public class RelationshipDTO {
 
     public void setType(RelationshipType type) {
         this.type = type;
+    }
+
+    public PersonSummary getPerson1() {
+        return person1;
+    }
+
+    public void setPerson1(PersonSummary person1) {
+        this.person1 = person1;
+    }
+
+    public PersonSummary getPerson2() {
+        return person2;
+    }
+
+    public void setPerson2(PersonSummary person2) {
+        this.person2 = person2;
     }
 }
