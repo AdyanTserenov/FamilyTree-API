@@ -76,7 +76,7 @@ public class AiService {
             return callYandexGpt(biography);
         } catch (Exception e) {
             log.error("AI extraction failed: {}", e.getMessage(), e);
-            return AiResponse.empty();
+            return AiResponse.error("Сервис AI временно недоступен. Попробуйте позже.");
         }
     }
 
