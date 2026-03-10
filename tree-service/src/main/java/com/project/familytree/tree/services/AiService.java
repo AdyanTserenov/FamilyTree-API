@@ -39,6 +39,9 @@ public class AiService {
     @Value("${ai.yandex.api-key:}")
     private String apiKey;
 
+    @Value("${ai.yandex.folder-id:}")
+    private String folderId;
+
     @Value("${ai.yandex.assistant-id:}")
     private String assistantId;
 
@@ -71,6 +74,11 @@ public class AiService {
 
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("Yandex AI API key not configured");
+            return AiResponse.empty();
+        }
+
+        if (folderId == null || folderId.isBlank()) {
+            log.warn("Yandex AI folder ID not configured");
             return AiResponse.empty();
         }
 
@@ -118,7 +126,10 @@ public class AiService {
     private String createThread() throws Exception {
         String url = baseUrl + "/threads";
         Map<String, Object> body = new HashMap<>();
-        // Пустой тред — сообщения добавляем отдельно
+        // folderId обязателен для Yandex AI Assistant API
+        if (folderId != null && !folderId.isBlank()) {
+            body.put("folderId", folderId);
+        }
         ResponseEntity<String> response = restTemplate.postForEntity(url, buildEntity(body), String.class);
         JsonNode root = objectMapper.readTree(response.getBody());
         String id = root.path("id").asText();
