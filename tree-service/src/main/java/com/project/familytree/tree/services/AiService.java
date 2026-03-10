@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -18,11 +19,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Сервис AI-интеграции для извлечения фактов из биографий.
- * Использует Yandex GPT API.
+ * Использует Yandex AI Assistant API (threads/messages/runs).
+ * Промпт (system instruction) управляется из Yandex AI Studio.
  * Rate limiting: 10 запросов в минуту на пользователя.
  */
 @Service
@@ -30,15 +31,19 @@ public class AiService {
 
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
     private static final int MAX_REQUESTS_PER_MINUTE = 10;
+    /** Максимальное время ожидания ответа от агента (мс) */
+    private static final long RUN_TIMEOUT_MS = 30_000L;
+    /** Интервал поллинга статуса run (мс) */
+    private static final long POLL_INTERVAL_MS = 1_000L;
 
     @Value("${ai.yandex.api-key:}")
     private String apiKey;
 
-    @Value("${ai.yandex.folder-id:}")
-    private String folderId;
+    @Value("${ai.yandex.assistant-id:}")
+    private String assistantId;
 
-    @Value("${ai.yandex.api-url:https://llm.api.cloud.yandex.net/foundationModels/v1/completion}")
-    private String apiUrl;
+    @Value("${ai.yandex.assistant-base-url:https://rest-assistant.api.cloud.yandex.net/assistants/v1}")
+    private String baseUrl;
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -52,112 +57,204 @@ public class AiService {
     }
 
     /**
-     * Извлечь факты из биографии с помощью Yandex GPT.
-     * При ошибке или отсутствии API-ключа возвращает пустой результат.
+     * Извлечь факты из биографии с помощью Yandex AI Assistant.
      *
      * @param biography текст биографии
      * @param userId    ID пользователя (для rate limiting)
      * @return структурированные факты
      */
     public AiResponse extractFacts(String biography, Long userId) {
-        // Проверка rate limit
         if (!checkRateLimit(userId)) {
             log.warn("Rate limit exceeded for user {}", userId);
             return AiResponse.error("Превышен лимит запросов. Попробуйте через минуту.");
         }
 
-        // Если API-ключ не настроен — возвращаем пустой результат
         if (apiKey == null || apiKey.isBlank()) {
-            log.warn("Yandex GPT API key not configured, returning empty result");
+            log.warn("Yandex AI API key not configured");
+            return AiResponse.empty();
+        }
+
+        if (assistantId == null || assistantId.isBlank()) {
+            log.warn("Yandex AI Assistant ID not configured");
             return AiResponse.empty();
         }
 
         try {
-            return callYandexGpt(biography);
+            return callAssistant(biography);
         } catch (Exception e) {
             log.error("AI extraction failed: {}", e.getMessage(), e);
             return AiResponse.error("Сервис AI временно недоступен. Попробуйте позже.");
         }
     }
 
-    // ─── Yandex GPT API call ──────────────────────────────────────────────────────
+    // ─── Yandex AI Assistant API ──────────────────────────────────────────────────
 
-    private AiResponse callYandexGpt(String biography) throws Exception {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "Api-Key " + apiKey);
-        headers.set("x-folder-id", folderId);
+    private AiResponse callAssistant(String biography) throws Exception {
+        // 1. Создать тред
+        String threadId = createThread();
+        log.debug("Created thread: {}", threadId);
 
-        String prompt = buildPrompt(biography);
+        // 2. Добавить сообщение пользователя в тред
+        addMessage(threadId, biography);
+        log.debug("Added message to thread: {}", threadId);
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("modelUri", "gpt://" + folderId + "/yandexgpt-lite");
+        // 3. Запустить агента
+        String runId = createRun(threadId);
+        log.debug("Created run: {}", runId);
 
-        Map<String, Object> completionOptions = new HashMap<>();
-        completionOptions.put("stream", false);
-        completionOptions.put("temperature", 0.1);
-        completionOptions.put("maxTokens", 1000);
-        requestBody.put("completionOptions", completionOptions);
+        // 4. Ждать завершения run
+        waitForRun(runId);
+        log.debug("Run completed: {}", runId);
 
-        List<Map<String, String>> messages = new ArrayList<>();
-        Map<String, String> systemMsg = new HashMap<>();
-        systemMsg.put("role", "system");
-        systemMsg.put("text", "Ты помощник для анализа биографий. Извлекай факты в формате JSON.");
-        messages.add(systemMsg);
+        // 5. Получить последнее сообщение ассистента
+        String responseText = getLastAssistantMessage(threadId);
+        log.debug("Assistant response: {}", responseText);
 
-        Map<String, String> userMsg = new HashMap<>();
-        userMsg.put("role", "user");
-        userMsg.put("text", prompt);
-        messages.add(userMsg);
-        requestBody.put("messages", messages);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(apiUrl, entity, String.class);
-
-        return parseYandexGptResponse(response.getBody());
+        // 6. Распарсить JSON из ответа
+        return parseAssistantResponse(responseText);
     }
 
-    private String buildPrompt(String biography) {
-        return "Проанализируй следующую биографию и извлеки факты в формате JSON:\n\n" +
-               biography + "\n\n" +
-               "Верни JSON в формате:\n" +
-               "{\n" +
-               "  \"dates\": [\"список дат и периодов\"],\n" +
-               "  \"places\": [\"список мест\"],\n" +
-               "  \"professions\": [\"список профессий и занятий\"],\n" +
-               "  \"events\": [\"список ключевых событий\"],\n" +
-               "  \"summary\": \"краткое резюме в 1-2 предложениях\"\n" +
-               "}\n" +
-               "Если информация отсутствует — используй пустой массив [].";
+    /** Создаёт новый тред. Возвращает threadId. */
+    private String createThread() throws Exception {
+        String url = baseUrl + "/threads";
+        Map<String, Object> body = new HashMap<>();
+        // Пустой тред — сообщения добавляем отдельно
+        ResponseEntity<String> response = restTemplate.postForEntity(url, buildEntity(body), String.class);
+        JsonNode root = objectMapper.readTree(response.getBody());
+        String id = root.path("id").asText();
+        if (id.isBlank()) {
+            throw new RuntimeException("Failed to create thread: " + response.getBody());
+        }
+        return id;
     }
 
-    private AiResponse parseYandexGptResponse(String responseBody) throws Exception {
-        JsonNode root = objectMapper.readTree(responseBody);
-        JsonNode textNode = root.path("result").path("alternatives").get(0).path("message").path("text");
+    /** Добавляет сообщение пользователя в тред. */
+    private void addMessage(String threadId, String text) throws Exception {
+        String url = baseUrl + "/messages";
+        Map<String, Object> body = new HashMap<>();
+        body.put("threadId", threadId);
+        body.put("role", "USER");
 
-        if (textNode.isMissingNode()) {
-            log.warn("Unexpected Yandex GPT response structure");
-            return AiResponse.empty();
+        Map<String, Object> content = new HashMap<>();
+        content.put("type", "TEXT");
+        Map<String, String> textContent = new HashMap<>();
+        textContent.put("content", text);
+        content.put("text", textContent);
+        body.put("content", content);
+
+        restTemplate.postForEntity(url, buildEntity(body), String.class);
+    }
+
+    /** Запускает агента на треде. Возвращает runId. */
+    private String createRun(String threadId) throws Exception {
+        String url = baseUrl + "/runs";
+        Map<String, Object> body = new HashMap<>();
+        body.put("assistantId", assistantId);
+        body.put("threadId", threadId);
+
+        ResponseEntity<String> response = restTemplate.postForEntity(url, buildEntity(body), String.class);
+        JsonNode root = objectMapper.readTree(response.getBody());
+        String id = root.path("id").asText();
+        if (id.isBlank()) {
+            throw new RuntimeException("Failed to create run: " + response.getBody());
+        }
+        return id;
+    }
+
+    /**
+     * Поллит статус run до завершения (DONE) или ошибки.
+     * Таймаут: {@value #RUN_TIMEOUT_MS} мс.
+     */
+    private void waitForRun(String runId) throws Exception {
+        String url = baseUrl + "/runs/" + runId;
+        long deadline = System.currentTimeMillis() + RUN_TIMEOUT_MS;
+
+        while (System.currentTimeMillis() < deadline) {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, buildEntity(null), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            String state = root.path("state").path("status").asText();
+            log.debug("Run {} state: {}", runId, state);
+
+            switch (state) {
+                case "DONE":
+                    return;
+                case "FAILED":
+                case "CANCELLED":
+                    String error = root.path("state").path("error").path("message").asText("Unknown error");
+                    throw new RuntimeException("Run " + runId + " failed: " + error);
+                default:
+                    // PENDING, IN_PROGRESS — продолжаем ждать
+                    Thread.sleep(POLL_INTERVAL_MS);
+            }
+        }
+        throw new RuntimeException("Run " + runId + " timed out after " + RUN_TIMEOUT_MS + "ms");
+    }
+
+    /** Получает последнее сообщение ассистента из треда. */
+    private String getLastAssistantMessage(String threadId) throws Exception {
+        String url = baseUrl + "/messages?threadId=" + threadId;
+        ResponseEntity<String> response = restTemplate.exchange(
+                url, HttpMethod.GET, buildEntity(null), String.class);
+        JsonNode root = objectMapper.readTree(response.getBody());
+        JsonNode messages = root.path("messages");
+
+        // Ищем последнее сообщение с role=ASSISTANT
+        String lastText = null;
+        if (messages.isArray()) {
+            for (JsonNode msg : messages) {
+                String role = msg.path("role").asText();
+                if ("ASSISTANT".equalsIgnoreCase(role)) {
+                    // content.text.content
+                    JsonNode textNode = msg.path("content").path("text").path("content");
+                    if (!textNode.isMissingNode()) {
+                        lastText = textNode.asText();
+                    }
+                }
+            }
         }
 
-        String text = textNode.asText();
-
-        // Извлекаем JSON из ответа (может быть обёрнут в markdown)
-        int jsonStart = text.indexOf('{');
-        int jsonEnd = text.lastIndexOf('}');
-        if (jsonStart == -1 || jsonEnd == -1) {
-            return AiResponse.empty();
+        if (lastText == null || lastText.isBlank()) {
+            throw new RuntimeException("No assistant message found in thread " + threadId);
         }
-        String jsonText = text.substring(jsonStart, jsonEnd + 1);
+        return lastText;
+    }
 
-        JsonNode parsed = objectMapper.readTree(jsonText);
+    // ─── Парсинг ответа ───────────────────────────────────────────────────────────
 
+    /**
+     * Парсит JSON из текстового ответа агента.
+     * Агент должен вернуть JSON (настраивается в инструкции в AI Studio).
+     * Для надёжности ищем первый { и последний } на случай markdown-обёртки.
+     */
+    private AiResponse parseAssistantResponse(String text) {
+        try {
+            // Попытка 1: прямой парсинг (если агент вернул чистый JSON)
+            return parseJsonToAiResponse(objectMapper.readTree(text));
+        } catch (Exception ignored) {
+            // Попытка 2: извлечь JSON из текста (если есть markdown или пояснения)
+            int jsonStart = text.indexOf('{');
+            int jsonEnd = text.lastIndexOf('}');
+            if (jsonStart == -1 || jsonEnd == -1 || jsonEnd <= jsonStart) {
+                log.warn("No JSON found in assistant response: {}", text);
+                return AiResponse.empty();
+            }
+            try {
+                String jsonText = text.substring(jsonStart, jsonEnd + 1);
+                return parseJsonToAiResponse(objectMapper.readTree(jsonText));
+            } catch (Exception e) {
+                log.warn("Failed to parse assistant response as JSON: {}", e.getMessage());
+                return AiResponse.empty();
+            }
+        }
+    }
+
+    private AiResponse parseJsonToAiResponse(JsonNode parsed) {
         List<String> dates = parseStringList(parsed.path("dates"));
         List<String> places = parseStringList(parsed.path("places"));
         List<String> professions = parseStringList(parsed.path("professions"));
         List<String> events = parseStringList(parsed.path("events"));
         String summary = parsed.path("summary").asText("");
-
         return new AiResponse(dates, places, professions, events, summary);
     }
 
@@ -167,6 +264,15 @@ public class AiService {
             node.forEach(item -> result.add(item.asText()));
         }
         return result;
+    }
+
+    // ─── HTTP helpers ─────────────────────────────────────────────────────────────
+
+    private <T> HttpEntity<T> buildEntity(T body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Api-Key " + apiKey);
+        return new HttpEntity<>(body, headers);
     }
 
     // ─── Rate limiting ────────────────────────────────────────────────────────────
@@ -183,7 +289,6 @@ public class AiService {
 
         rateLimitMap.compute(userId, (id, data) -> {
             if (data == null || now - data[1] > windowMs) {
-                // Новое окно
                 return new long[]{1, now};
             }
             data[0]++;
