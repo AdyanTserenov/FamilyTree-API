@@ -1,9 +1,8 @@
-# Family Tree API — Детальный план реализации
+# FamilyTree API
 
-> **Статус проекта:** В разработке  
-> **Версия документа:** 1.0  
-> **Дата:** 2026-02-25  
-> **Стек:** Java 17 · Spring Boot 3.4.2 · PostgreSQL · JWT · Maven
+> **Стек:** Java 17 · Spring Boot 3.4 · PostgreSQL · JWT · Maven · Docker  
+> **Статус:** Production-ready  
+> **Деплой:** Yandex Cloud VM, два Docker-контейнера + внешний PostgreSQL-кластер
 
 ---
 
@@ -17,11 +16,12 @@
 6. [Модуль: tree-service](#6-модуль-tree-service)
 7. [Полный справочник API](#7-полный-справочник-api)
 8. [Безопасность и авторизация](#8-безопасность-и-авторизация)
-9. [Управление медиафайлами](#9-управление-медиафайлами)
-10. [Стратегия тестирования](#10-стратегия-тестирования)
-11. [Выявленные пробелы и задачи](#11-выявленные-пробелы-и-задачи)
-12. [Стратегия развёртывания](#12-стратегия-развёртывания)
-13. [Дорожная карта](#13-дорожная-карта)
+9. [AI-анализ биографий (YandexGPT)](#9-ai-анализ-биографий-yandexgpt)
+10. [Управление медиафайлами](#10-управление-медиафайлами)
+11. [Уведомления](#11-уведомления)
+12. [Тестирование](#12-тестирование)
+13. [Запуск локально](#13-запуск-локально)
+14. [Переменные окружения](#14-переменные-окружения)
 
 ---
 
@@ -35,50 +35,49 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Клиент (Browser / Mobile)                    │
+│                    Клиент (Browser)                             │
 └──────────────────────────────┬──────────────────────────────────┘
                                │ HTTPS / REST JSON
-                               ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                 Spring Boot Monolith (tree-service)              │
-│                                                                  │
-│  ┌─────────────────┐  ┌──────────────────┐  ┌───────────────┐   │
-│  │  TreeController │  │ PersonController │  │MediaController│   │
-│  └────────┬────────┘  └────────┬─────────┘  └──────┬────────┘   │
-│           │                    │                    │            │
-│  ┌────────▼────────────────────▼────────────────────▼─────────┐  │
-│  │                        TreeService                          │  │
-│  └────────────────────────────┬────────────────────────────────┘  │
-│                               │                                  │
-│  ┌────────────────────────────▼────────────────────────────────┐  │
-│  │           family-tree-auth-starter (embedded lib)            │  │
-│  │   UserService · TokenService · JwtUtils · SecurityConfig     │  │
-│  └────────────────────────────┬────────────────────────────────┘  │
-│                               │                                  │
-│  ┌────────────────────────────▼────────────────────────────────┐  │
-│  │                    PostgreSQL Database                       │  │
-│  │  users · tokens · trees · tree_memberships · invitations    │  │
-│  │  persons · relationships · media_files                      │  │
-│  └─────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────┐
-│                  auth-service (отдельный сервис)                 │
-│  Регистрация · Вход · Верификация email · Сброс пароля           │
-│  Использует тот же family-tree-auth-starter                      │
-└──────────────────────────────────────────────────────────────────┘
+               ┌───────────────┴───────────────┐
+               ▼                               ▼
+┌──────────────────────┐         ┌──────────────────────┐
+│    auth-service      │         │    tree-service       │
+│    (порт 8081)       │         │    (порт 8080)        │
+│                      │         │                       │
+│  Регистрация         │         │  Деревья, персоны     │
+│  Вход / JWT          │         │  Связи, медиафайлы    │
+│  Профиль             │         │  Комментарии          │
+│  Сброс пароля        │         │  Уведомления          │
+│  Email-верификация   │         │  AI-анализ            │
+└──────────┬───────────┘         └──────────┬────────────┘
+           │                               │
+           └──────────────┬────────────────┘
+                          ▼
+           ┌──────────────────────────────┐
+           │  family-tree-auth-starter    │
+           │  (embedded library)          │
+           │  SecurityConfig · JwtUtils   │
+           │  TokenFilter · UserService   │
+           └──────────────┬───────────────┘
+                          │
+                          ▼
+           ┌──────────────────────────────┐
+           │  Yandex Managed PostgreSQL   │
+           │  DB: familytree              │
+           │  Schema: public              │
+           │  (общая для обоих сервисов)  │
+           └──────────────────────────────┘
 ```
 
-### 1.3 Принципы проектирования
+### 1.3 Ключевые архитектурные решения
 
-| Принцип | Реализация |
-|---------|-----------|
-| **Единая ответственность** | Каждый сервис отвечает за одну предметную область |
-| **Переиспользование** | `family-tree-auth-starter` — общая библиотека для auth-логики |
-| **Безопасность по умолчанию** | JWT-фильтр на всех эндпоинтах, RBAC на уровне сервиса |
-| **Fail-fast** | Валидация входных данных через Bean Validation (`@Valid`) |
-| **Тестируемость** | Сервисы не зависят от HTTP-контекста, легко мокируются |
-| **Идемпотентность** | Уникальные ограничения в БД предотвращают дублирование связей |
+| Решение | Обоснование |
+|---------|-------------|
+| **Два сервиса, одна БД** | auth-service и tree-service используют одну PostgreSQL БД (`familytree`). Это упрощает управление пользователями — tree-service читает таблицу `users` напрямую без HTTP-вызовов к auth-service |
+| **Нет HTTP-коммуникации между сервисами** | JWT-токен валидируется локально в каждом сервисе через `family-tree-auth-starter`. Нет синхронных зависимостей между сервисами |
+| **family-tree-auth-starter** | Spring Boot Auto-configuration библиотека с общей auth-логикой. Подключается как Maven-зависимость в tree-service |
+| **Stateless JWT** | `TokenFilter` проверяет подпись JWT криптографически, без обращения к БД. Секрет должен совпадать в обоих сервисах |
+| **Yandex Object Storage (S3)** | Медиафайлы хранятся в S3-совместимом хранилище Yandex Cloud, не на диске VM |
 
 ---
 
@@ -90,47 +89,61 @@ FamilyTree-API/
 │
 ├── family-tree-auth-starter/            # Переиспользуемая auth-библиотека
 │   └── src/main/java/.../auth/
-│       ├── AuthAutoConfiguration.java   # Spring Boot Auto-configuration
-│       ├── config/                      # SecurityConfig, SwaggerConfig, PasswordEncoder, Scheduler
-│       ├── controllers/                 # SecurityController, ProfileController
-│       ├── dto/                         # SignUpRequest, SignInRequest, UserDTO, ...
-│       ├── exceptions/                  # GlobalExceptionHandler + кастомные исключения
-│       ├── impls/                       # TokenType, TokenDetails
-│       ├── models/                      # User, Token, ResetToken, VerifyToken
-│       ├── repositories/                # UserRepository, TokenRepository
-│       ├── security/                    # JwtUtils, TokenFilter
-│       └── services/                    # UserService, TokenService, MailSenderService
+│       ├── AuthAutoConfiguration.java   # Spring Boot Auto-configuration entry point
+│       ├── config/
+│       │   ├── SecurityConfig.java      # Spring Security + JWT filter chain
+│       │   └── SwaggerConfig.java       # OpenAPI 3 с Bearer Auth
+│       ├── security/
+│       │   ├── JwtUtils.java            # Генерация и валидация JWT (HMAC-SHA256)
+│       │   └── TokenFilter.java         # OncePerRequestFilter для JWT
+│       ├── services/
+│       │   ├── UserService.java         # CRUD пользователей, UserDetailsService
+│       │   ├── TokenService.java        # Токены верификации/сброса
+│       │   └── MailSenderService.java   # SMTP email
+│       ├── models/
+│       │   ├── User.java                # @Entity пользователя
+│       │   ├── Token.java               # @Entity базового токена
+│       │   ├── VerifyToken.java         # Токен верификации email
+│       │   └── ResetToken.java          # Токен сброса пароля
+│       └── dto/
+│           ├── SignUpRequest.java
+│           ├── SignInRequest.java
+│           └── UserDTO.java
 │
-├── auth-service/                        # Standalone сервис аутентификации
+├── auth-service/                        # Сервис аутентификации (порт 8081)
 │   └── src/main/java/.../
-│       ├── controllers/                 # SecurityController, ProfileController, TreeController
-│       ├── models/                      # Tree, TreeMembership, Invitation
-│       ├── repositories/                # TreeRepository, TreeMembershipRepository, InvitationRepository
-│       └── services/                    # TreeService (управление деревьями в auth-service)
+│       ├── controllers/
+│       │   ├── SecurityController.java  # /api/auth/** (sign-up, sign-in, verify, reset)
+│       │   └── ProfileController.java   # /api/profile/** (get, update, change-password)
+│       ├── services/
+│       │   └── UserService.java         # Расширяет логику стартера
+│       └── configurators/
+│           ├── SecurityConfig.java      # Переопределяет SecurityConfig стартера
+│           └── CorsConfig.java          # CORS настройки
 │
-└── tree-service/                        # Основной сервис семейных деревьев
+└── tree-service/                        # Основной сервис (порт 8080)
     └── src/main/java/.../tree/
-        ├── controllers/                 # TreeController, PersonController, MediaFileController
-        ├── dto/                         # TreeDTO, PersonDTO, RelationshipDTO, MediaFileDTO, ...
-        ├── impls/                       # Gender, RelationshipType, MediaFileType, TreeRole
-        ├── models/                      # Tree, Person, Relationship, MediaFile, TreeMembership, Invitation
-        ├── repositories/                # все JPA-репозитории
-        └── services/                    # TreeService, MediaFileService
+        ├── controllers/
+        │   ├── TreeController.java      # /api/trees/**
+        │   ├── PersonController.java    # /api/trees/{id}/persons/**
+        │   ├── MediaFileController.java # /api/trees/{id}/persons/{id}/media/**
+        │   ├── NotificationController.java # /api/notifications/**
+        │   ├── CommentController.java   # /api/trees/{id}/persons/{id}/comments/**
+        │   └── AiController.java        # /api/ai/extract-facts
+        ├── services/
+        │   ├── TreeService.java         # Основная бизнес-логика
+        │   ├── MediaFileService.java    # Загрузка/скачивание файлов (S3)
+        │   ├── NotificationService.java # Создание и управление уведомлениями
+        │   ├── CommentService.java      # Комментарии к персонам
+        │   └── AiService.java           # YandexGPT Completion API
+        ├── models/
+        │   ├── Tree.java, Person.java, Relationship.java
+        │   ├── TreeMembership.java, Invitation.java
+        │   ├── MediaFile.java, Comment.java
+        │   ├── Notification.java, PersonHistory.java
+        │   └── PublicTreeToken.java
+        └── dto/                         # DTO для всех сущностей
 ```
-
-### 2.1 Зависимости между модулями
-
-```
-auth-service  ──────────────────────────────────────────────────────┐
-                                                                     │
-tree-service  ──────────────────────────────────────────────────────┤
-                                                                     ▼
-                                               family-tree-auth-starter
-                                               (UserService, JwtUtils,
-                                                SecurityConfig, MailSender)
-```
-
-> **Важно:** `tree-service` напрямую использует `UserService` и `MailSenderService` из стартера. Оба сервиса разделяют одну БД (таблица `users`).
 
 ---
 
@@ -149,10 +162,12 @@ users (1) ──────────────── (N) tree_memberships 
                                               (N) relationships
                                               (PARENT_CHILD / PARTNERSHIP)
                                                        │
-                                              (N) media_files ──── (1) users (uploaded_by)
+                                              (N) media_files
+                                              (N) comments
+                                              (N) person_history
 ```
 
-### 3.2 Таблицы и их назначение
+### 3.2 Таблицы
 
 | Таблица | Назначение | Ключевые ограничения |
 |---------|-----------|----------------------|
@@ -161,9 +176,13 @@ users (1) ──────────────── (N) tree_memberships 
 | `trees` | Семейные деревья | — |
 | `tree_memberships` | Участие пользователей в деревьях | UNIQUE(tree_id, user_id), `role` IN ('OWNER','EDITOR','VIEWER') |
 | `invitations` | Приглашения по email или ссылке | `token` UNIQUE, `accepted` DEFAULT FALSE |
+| `public_tree_tokens` | Токены публичного доступа к дереву | UNIQUE(tree_id) |
 | `persons` | Персоны в дереве | `gender` IN ('MALE','FEMALE','OTHER') |
 | `relationships` | Связи между персонами | UNIQUE(tree_id, person1_id, person2_id, type) |
-| `media_files` | Медиафайлы персон | `file_type` IN ('PHOTO','DOCUMENT','VIDEO','AUDIO') |
+| `media_files` | Медиафайлы персон (S3) | `file_type` IN ('PHOTO','DOCUMENT','VIDEO','AUDIO') |
+| `comments` | Комментарии к персонам | — |
+| `person_history` | История изменений полей персоны | — |
+| `notifications` | Уведомления пользователей | `read` DEFAULT FALSE |
 
 ### 3.3 Семантика связей
 
@@ -172,25 +191,19 @@ PARENT_CHILD:
   person1 = РОДИТЕЛЬ
   person2 = РЕБЁНОК
   Направленная связь. Для одного ребёнка может быть несколько записей (мать + отец).
-  Пример: (Пётр, Иван, PARENT_CHILD) → Пётр является отцом Ивана
 
 PARTNERSHIP:
   person1 и person2 = ПАРТНЁРЫ (супруги, сожители)
   Симметричная связь. При поиске проверяются оба порядка (p1,p2) и (p2,p1).
-  Пример: (Пётр, Мария, PARTNERSHIP) → Пётр и Мария — партнёры
 ```
 
-### 3.4 Индексы производительности
+### 3.4 Перечисления
 
-```sql
--- Уже созданы в init.sql:
-idx_tokens_expires_at        -- для планировщика очистки токенов
-idx_persons_tree_id          -- для выборки всех персон дерева
-idx_relationships_tree_id    -- для выборки всех связей дерева
-idx_relationships_person1    -- для поиска связей по person1
-idx_relationships_person2    -- для поиска связей по person2
-idx_media_files_tree_id      -- для выборки медиа дерева
-idx_media_files_person_id    -- для выборки медиа персоны
+```java
+enum TreeRole        { VIEWER, EDITOR, OWNER }      // ordinal: 0, 1, 2
+enum RelationshipType { PARENT_CHILD, PARTNERSHIP }
+enum Gender          { MALE, FEMALE, OTHER }
+enum MediaFileType   { PHOTO, DOCUMENT, VIDEO, AUDIO }
 ```
 
 ---
@@ -199,45 +212,53 @@ idx_media_files_person_id    -- для выборки медиа персоны
 
 ### 4.1 Назначение
 
-Spring Boot Auto-configuration библиотека, которая предоставляет готовую инфраструктуру аутентификации для любого сервиса в экосистеме Family Tree.
+Spring Boot Auto-configuration библиотека. Подключается через `pom.xml` в tree-service как Maven-зависимость. Предоставляет готовую инфраструктуру аутентификации.
+
+> **Важно:** auth-service НЕ использует стартер как зависимость — он дублирует часть кода inline. Это известная архитектурная особенность проекта.
 
 ### 4.2 Что предоставляет стартер
 
-#### Модели
-- `User` — сущность пользователя (`id`, `firstName`, `lastName`, `middleName`, `email`, `password`, `enabled`)
-- `Token` — унифицированный токен верификации/сброса (`type`, `token_hash`, `expires_at`, `consumed`)
-- `ResetToken` — токен сброса пароля
-- `VerifyToken` — токен верификации email
+#### JwtUtils
 
-#### Сервисы
-- `UserService` — CRUD пользователей, поиск по email/id/UserDetails, `findIdByDetails()`
-- `TokenService` — создание, валидация, потребление токенов
-- `MailSenderService` — отправка email через SMTP (`sendEmail(to, subject, text)`)
-- `EmailTemplateService` — шаблоны писем (верификация, сброс пароля)
+```java
+// Генерация JWT при входе
+String generateJwtToken(Authentication authentication)
 
-#### Безопасность
-- `JwtUtils` — генерация и валидация JWT (HMAC-SHA256)
-- `TokenFilter` — Spring Security `OncePerRequestFilter` для JWT
+// Извлечение email из токена
+String getUserNameFromJwtToken(String token)
 
-#### Конфигурация
-- `SecurityConfig` — настройка Spring Security (публичные пути, JWT-фильтр)
-- `SwaggerConfig` — OpenAPI 3 документация с поддержкой Bearer Auth
-- `TokenCleanUpScheduler` — `@Scheduled` задача очистки истёкших токенов
+// Валидация подписи и срока действия
+boolean validateJwtToken(String authToken)
+```
+
+#### TokenFilter (OncePerRequestFilter)
+
+Выполняется для каждого запроса:
+1. Извлекает токен из заголовка `Authorization: Bearer <token>`
+2. Вызывает `jwtUtils.validateJwtToken()` — **без обращения к БД**
+3. Загружает `UserDetails` из БД по email из токена
+4. Устанавливает `SecurityContextHolder`
+
+#### SecurityConfig
+
+Настраивает Spring Security:
+- Публичные пути: `/api/auth/**`, `/api/trees/public/**`, `/api/trees/invite/**`
+- Все остальные пути требуют аутентификации
+- Stateless сессии (JWT)
+- CORS из переменной `CORS_ALLOWED_ORIGINS`
 
 ### 4.3 Конфигурационные свойства
 
 ```properties
-# JWT
+# JWT (обязательно совпадает в auth-service и tree-service)
 family.auth.jwt.secret=<минимум 32 символа для HMAC-SHA256>
-family.auth.jwt.lifetime=3600000   # миллисекунды (1 час по умолчанию)
+family.auth.jwt.lifetime=3600000   # миллисекунды (1 час)
 
 # SMTP
-spring.mail.host=smtp.gmail.com
+spring.mail.host=smtp.yandex.ru
 spring.mail.port=587
-spring.mail.username=your@email.com
+spring.mail.username=your@yandex.ru
 spring.mail.password=app-password
-spring.mail.properties.mail.smtp.auth=true
-spring.mail.properties.mail.smtp.starttls.enable=true
 ```
 
 ---
@@ -246,63 +267,56 @@ spring.mail.properties.mail.smtp.starttls.enable=true
 
 ### 5.1 Назначение
 
-Standalone HTTP-сервис для управления учётными записями пользователей. Использует `family-tree-auth-starter` как зависимость.
+Standalone HTTP-сервис (порт 8081) для управления учётными записями пользователей.
 
-### 5.2 Эндпоинты auth-service
+### 5.2 Эндпоинты
 
-#### SecurityController — `/api/auth`
+#### SecurityController — `POST/GET /api/auth`
 
 | Метод | Путь | Описание | Тело запроса |
 |-------|------|----------|-------------|
-| `POST` | `/signup` | Регистрация нового пользователя | `SignUpRequest` |
-| `POST` | `/signin` | Вход, получение JWT | `SignInRequest` |
-| `GET` | `/verify?token=` | Верификация email по токену | — |
-| `POST` | `/forgot-password` | Запрос письма сброса пароля | `{email}` |
-| `POST` | `/reset-password` | Установка нового пароля | `PasswordResetRequest` |
+| `POST` | `/api/auth/sign-up` | Регистрация | `{ firstName, lastName, middleName?, email, password }` |
+| `POST` | `/api/auth/sign-in` | Вход, получение JWT | `{ email, password }` |
+| `GET` | `/api/auth/confirm?token=` | Верификация email | — |
+| `POST` | `/api/auth/forgot` | Запрос письма сброса | `{ email }` |
+| `POST` | `/api/auth/reset` | Установка нового пароля | `{ token, newPassword }` |
+| `POST` | `/api/auth/resend-verification` | Повторная отправка письма | `{ email }` |
+| `GET` | `/api/auth/ping` | Health check | — |
 
-#### ProfileController — `/api/profile`
+#### ProfileController — `/api/profile` (требует JWT)
 
-| Метод | Путь | Описание | Auth |
-|-------|------|----------|------|
-| `GET` | `/` | Получить профиль текущего пользователя | JWT |
-| `PUT` | `/` | Обновить профиль | JWT |
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/profile` | Получить профиль текущего пользователя |
+| `PATCH` | `/api/profile` | Обновить имя/фамилию/отчество |
+| `POST` | `/api/profile/change-password` | Сменить пароль |
+| `DELETE` | `/api/profile` | Удалить аккаунт |
 
-#### TreeController (в auth-service) — `/api/trees`
+### 5.3 Формат ответов
 
-| Метод | Путь | Описание | Auth |
-|-------|------|----------|------|
-| `GET` | `/` | Список деревьев пользователя | JWT |
-| `POST` | `/` | Создать дерево | JWT |
-| `POST` | `/{id}/invite` | Пригласить по email | JWT + OWNER |
-
-### 5.3 DTO auth-service
-
-```java
-SignUpRequest {
-    String firstName;    // @NotBlank
-    String lastName;     // @NotBlank
-    String middleName;   // nullable
-    String email;        // @Email @NotBlank
-    String password;     // @Size(min=8)
+**Успешный вход:**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiJ9...",
+    "user": {
+      "id": 1,
+      "email": "user@example.com",
+      "firstName": "Иван",
+      "lastName": "Иванов",
+      "emailVerified": true
+    }
+  }
 }
+```
 
-SignInRequest {
-    String email;
-    String password;
-}
-
-ProfileResponse {
-    Long id;
-    String firstName;
-    String lastName;
-    String middleName;
-    String email;
-    Instant createdAt;
-}
-
-PasswordResetRequest {
-    String token;
-    String newPassword;
+**Ошибка:**
+```json
+{
+  "success": false,
+  "message": "Неверный email или пароль",
+  "data": null
 }
 ```
 
@@ -312,7 +326,7 @@ PasswordResetRequest {
 
 ### 6.1 Назначение
 
-Основной сервис приложения. Управляет семейными деревьями, персонами, связями и медиафайлами. Использует `family-tree-auth-starter` для аутентификации.
+Основной сервис приложения (порт 8080). Управляет семейными деревьями, персонами, связями, медиафайлами, комментариями, уведомлениями и AI-анализом.
 
 ### 6.2 Слои приложения
 
@@ -320,16 +334,17 @@ PasswordResetRequest {
 HTTP Request
     │
     ▼
-Controller
-  - Валидация входных данных (@Valid)
-  - Извлечение userId из SecurityContext
+Controller (@RestController)
+  - @Valid валидация входных данных
+  - Извлечение userId из SecurityContext через UserService.findIdByDetails()
   - Делегирование в Service
     │
     ▼
-Service
+Service (@Service, @Transactional)
   - Бизнес-логика
   - Проверка прав доступа (canView / canEdit / isOwner)
-  - @Transactional для операций записи
+  - Запись истории изменений (PersonHistory)
+  - Отправка уведомлений (NotificationService)
     │
     ▼
 Repository (Spring Data JPA)
@@ -337,122 +352,35 @@ Repository (Spring Data JPA)
   - Кастомные @Query для сложных выборок
     │
     ▼
-PostgreSQL Database
+Yandex Managed PostgreSQL
 ```
 
-### 6.3 Модели tree-service
-
-#### Tree
-```
-id          BIGSERIAL PK
-name        VARCHAR(255) NOT NULL
-created_at  TIMESTAMP WITH TIME ZONE
-```
-
-#### TreeMembership
-```
-id          BIGSERIAL PK
-tree_id     FK → trees(id) CASCADE
-user_id     FK → users(id) CASCADE
-role        VARCHAR(20) CHECK IN ('OWNER','EDITOR','VIEWER')
-created_at  TIMESTAMP WITH TIME ZONE
-UNIQUE(tree_id, user_id)
-```
-
-#### Person
-```
-id          BIGSERIAL PK
-tree_id     FK → trees(id) CASCADE
-first_name  VARCHAR(100) NOT NULL
-last_name   VARCHAR(100) NOT NULL
-middle_name VARCHAR(100)
-gender      VARCHAR(10) CHECK IN ('MALE','FEMALE','OTHER')
-birth_date  DATE
-death_date  DATE
-birth_place VARCHAR(255)
-death_place VARCHAR(255)
-biography   TEXT
-created_at  TIMESTAMP WITH TIME ZONE
-updated_at  TIMESTAMP WITH TIME ZONE
-```
-
-#### Relationship
-```
-id          BIGSERIAL PK
-tree_id     FK → trees(id) CASCADE
-person1_id  FK → persons(id) CASCADE   -- родитель / первый партнёр
-person2_id  FK → persons(id) CASCADE   -- ребёнок / второй партнёр
-type        VARCHAR(20) CHECK IN ('PARENT_CHILD','PARTNERSHIP')
-created_at  TIMESTAMP WITH TIME ZONE
-UNIQUE(tree_id, person1_id, person2_id, type)
-```
-
-#### MediaFile
-```
-id          BIGSERIAL PK
-person_id   FK → persons(id) CASCADE   -- nullable
-tree_id     FK → trees(id) CASCADE
-file_name   VARCHAR(255) NOT NULL      -- оригинальное имя
-file_path   VARCHAR(512) NOT NULL      -- путь на диске (UUID + расширение)
-file_type   VARCHAR(20) CHECK IN ('PHOTO','DOCUMENT','VIDEO','AUDIO')
-file_size   BIGINT NOT NULL            -- байты
-description TEXT
-uploaded_at TIMESTAMP WITH TIME ZONE
-uploaded_by FK → users(id)
-```
-
-#### Invitation
-```
-id          BIGSERIAL PK
-token       VARCHAR(255) UNIQUE        -- UUID
-tree_id     FK → trees(id) CASCADE
-email       VARCHAR(255) NOT NULL
-role        VARCHAR(20) CHECK IN ('OWNER','EDITOR','VIEWER')
-created_at  TIMESTAMP WITH TIME ZONE
-expires_at  TIMESTAMP WITH TIME ZONE  -- +7 дней от создания
-accepted    BOOLEAN DEFAULT FALSE
-```
-
-### 6.4 Перечисления
-
-```java
-// Иерархия прав (ordinal: VIEWER=0, EDITOR=1, OWNER=2)
-// hasPermission(required): this.ordinal() >= required.ordinal()
-enum TreeRole { VIEWER, EDITOR, OWNER }
-
-// Типы родственных связей
-enum RelationshipType { PARENT_CHILD, PARTNERSHIP }
-
-// Пол персоны
-enum Gender { MALE, FEMALE, OTHER }
-
-// Типы медиафайлов
-enum MediaFileType { PHOTO, DOCUMENT, VIDEO, AUDIO }
-```
-
-### 6.5 TreeService — бизнес-логика
+### 6.3 TreeService — бизнес-логика
 
 #### Управление деревьями
 
 | Метод | Описание | Минимальная роль |
 |-------|----------|-----------------|
 | `createTree(name, ownerId)` | Создаёт дерево + запись OWNER в memberships | Любой авторизованный |
-| `getById(treeId)` | Получить дерево по ID (или RuntimeException) | — |
 | `getUserTrees(userId)` | Список деревьев пользователя | — |
 | `getMembers(treeId)` | Список участников дерева | VIEWER |
-| `addMember(treeId, userId, role)` | Добавить участника | OWNER |
-| `hasRole(treeId, userId, required)` | Проверка роли | — |
-| `canView(treeId, userId)` | VIEWER или OWNER | — |
-| `canEdit(treeId, userId)` | EDITOR или OWNER | — |
-| `isOwner(treeId, userId)` | Только OWNER | — |
+| `hasRole(treeId, userId, required)` | Проверка роли (ordinal-сравнение) | — |
 
 #### Приглашения
 
 | Метод | Описание |
 |-------|----------|
-| `createInviteToken(treeId, email, role, inviterId)` | Создаёт UUID-токен, сохраняет в БД, возвращает токен |
-| `sendInviteByEmail(treeId, email, role, inviterId)` | Создаёт токен + отправляет email со ссылкой |
+| `createInviteToken(treeId, email, role, inviterId)` | UUID-токен, сохраняется в БД, возвращается клиенту |
+| `sendInviteByEmail(treeId, email, role, inviterId)` | Токен + email со ссылкой |
 | `acceptInvitation(token, userId)` | Проверяет токен, email, срок → добавляет участника |
+
+#### Публичные ссылки
+
+| Метод | Описание |
+|-------|----------|
+| `generatePublicLink(treeId, userId)` | Создаёт `PublicTreeToken`, возвращает URL |
+| `revokePublicLink(treeId, userId)` | Удаляет токен публичного доступа |
+| `getPublicTree(token)` | Возвращает PersonDTO[] без аутентификации |
 
 #### Управление персонами
 
@@ -461,8 +389,10 @@ enum MediaFileType { PHOTO, DOCUMENT, VIDEO, AUDIO }
 | `createPerson(treeId, request, userId)` | Создать персону | EDITOR |
 | `getPersons(treeId, userId)` | Список персон (сортировка по lastName, firstName) | VIEWER |
 | `getPerson(treeId, personId, userId)` | Персона с её связями | VIEWER |
-| `updatePerson(treeId, personId, request, userId)` | Обновить все поля | EDITOR |
+| `updatePerson(treeId, personId, request, userId)` | Обновить поля + записать историю | EDITOR |
 | `deletePerson(treeId, personId, userId)` | Удалить персону + связи + медиафайлы | EDITOR |
+| `getTreeGraph(treeId, userId)` | Все персоны со всеми связями для графа | VIEWER |
+| `searchPersons(treeId, query, userId)` | Поиск по имени/фамилии | VIEWER |
 
 #### Управление связями
 
@@ -470,166 +400,85 @@ enum MediaFileType { PHOTO, DOCUMENT, VIDEO, AUDIO }
 |-------|----------|-----------------|
 | `addRelationship(treeId, request, userId)` | Добавить связь (с проверкой дублей) | EDITOR |
 | `removeRelationship(treeId, request, userId)` | Удалить связь | EDITOR |
-| `getTreeGraph(treeId, userId)` | Все персоны со всеми связями для графа | VIEWER |
-
-### 6.6 MediaFileService — управление файлами
-
-| Метод | Описание | Минимальная роль |
-|-------|----------|-----------------|
-| `uploadFile(treeId, personId, file, type, desc, userId)` | Сохранить файл на диск + запись в БД | EDITOR |
-| `getPersonMedia(treeId, personId, userId)` | Список файлов персоны | VIEWER |
-| `getTreeMedia(treeId, userId)` | Все файлы дерева | VIEWER |
-| `downloadFile(treeId, personId, fileId, userId)` | Скачать файл (Resource) | VIEWER |
-| `deleteFile(treeId, personId, fileId, userId)` | Удалить файл с диска + из БД | EDITOR |
 
 ---
 
 ## 7. Полный справочник API
 
-### 7.1 Базовый URL
+### 7.1 Базовые URL
 
 ```
 tree-service:  http://localhost:8080
-auth-service:  http://localhost:8081  (если запущен отдельно)
+auth-service:  http://localhost:8081
 Swagger UI:    http://localhost:8080/swagger-ui.html
 OpenAPI JSON:  http://localhost:8080/v3/api-docs
 ```
 
 ### 7.2 Аутентификация
 
-Все эндпоинты (кроме `/api/auth/**`) требуют заголовок:
+Все эндпоинты (кроме `/api/auth/**`, `/api/trees/public/**`, `/api/trees/invite/**`) требуют:
 ```
 Authorization: Bearer <JWT-токен>
 ```
 
-### 7.3 Формат ответа (`CustomApiResponse<T>`)
+### 7.3 Формат ответа
 
 ```json
-// Успех с данными
 {
-  "success": true,
-  "message": null,
-  "data": { ... }
-}
-
-// Успех с сообщением
-{
-  "success": true,
-  "message": "Дерево создано",
-  "data": null
-}
-
-// Ошибка
-{
-  "success": false,
-  "message": "Описание ошибки",
-  "data": null
+  "success": true | false,
+  "message": "Описание или null",
+  "data": { ... } | null
 }
 ```
 
-### 7.4 TreeController — `/trees`
+### 7.4 TreeController — `/api/trees`
 
 | Метод | Путь | Описание | Роль |
 |-------|------|----------|------|
-| `GET` | `/trees` | Список деревьев текущего пользователя | Любой |
-| `POST` | `/trees` | Создать дерево | Любой |
-| `POST` | `/trees/{treeId}/invite` | Пригласить по email | OWNER |
-| `POST` | `/trees/{treeId}/invite-link` | Получить ссылку-приглашение | OWNER |
-| `GET` | `/trees/invite/{token}` | Принять приглашение | Любой |
-| `GET` | `/trees/{treeId}/members` | Список участников | VIEWER+ |
+| `GET` | `/api/trees` | Список деревьев пользователя | Любой |
+| `POST` | `/api/trees` | Создать дерево `{ name }` | Любой |
+| `PUT` | `/api/trees/{treeId}` | Переименовать дерево | OWNER |
+| `DELETE` | `/api/trees/{treeId}` | Удалить дерево | OWNER |
+| `POST` | `/api/trees/{treeId}/invite` | Пригласить по email `{ email, role }` | OWNER |
+| `POST` | `/api/trees/{treeId}/invite-link` | Получить ссылку-приглашение `{ email, role }` | OWNER |
+| `GET` | `/api/trees/invite/{token}` | Принять приглашение | Любой |
+| `GET` | `/api/trees/{treeId}/members` | Список участников | VIEWER+ |
+| `POST` | `/api/trees/{treeId}/public-link` | Создать публичную ссылку | OWNER |
+| `DELETE` | `/api/trees/{treeId}/public-link` | Отозвать публичную ссылку | OWNER |
+| `GET` | `/api/trees/public/{token}` | Публичный просмотр дерева | Без auth |
 
-**POST /trees** — тело запроса:
-```json
-{ "name": "Семья Ивановых" }
-```
-
-**POST /trees/{treeId}/invite** — тело запроса:
-```json
-{
-  "email": "user@example.com",
-  "role": "EDITOR"
-}
-```
-
-**POST /trees/{treeId}/invite-link** — ответ:
-```json
-{
-  "success": true,
-  "data": {
-    "inviteLink": "https://familytree.example.com/invite/550e8400-e29b-41d4-a716-446655440000"
-  }
-}
-```
-
-**GET /trees** — ответ:
-```json
-{
-  "success": true,
-  "data": [
-    { "id": 1, "name": "Семья Ивановых", "createdAt": "2026-01-15T10:00:00Z" },
-    { "id": 2, "name": "Семья Петровых", "createdAt": "2026-02-01T08:30:00Z" }
-  ]
-}
-```
-
-### 7.5 PersonController — `/trees/{treeId}/persons`
+### 7.5 PersonController — `/api/trees/{treeId}/persons`
 
 | Метод | Путь | Описание | Роль |
 |-------|------|----------|------|
-| `GET` | `/trees/{treeId}/persons` | Список персон (сортировка по фамилии) | VIEWER+ |
-| `POST` | `/trees/{treeId}/persons` | Создать персону | EDITOR+ |
-| `GET` | `/trees/{treeId}/persons/{personId}` | Получить персону со связями | VIEWER+ |
-| `PUT` | `/trees/{treeId}/persons/{personId}` | Обновить персону | EDITOR+ |
-| `DELETE` | `/trees/{treeId}/persons/{personId}` | Удалить персону | EDITOR+ |
-| `GET` | `/trees/{treeId}/persons/graph` | Граф дерева (все персоны + связи) | VIEWER+ |
-| `POST` | `/trees/{treeId}/persons/relationships` | Добавить связь | EDITOR+ |
-| `DELETE` | `/trees/{treeId}/persons/relationships` | Удалить связь | EDITOR+ |
+| `GET` | `/persons` | Список персон | VIEWER+ |
+| `POST` | `/persons` | Создать персону | EDITOR+ |
+| `GET` | `/persons/{personId}` | Получить персону со связями | VIEWER+ |
+| `PUT` | `/persons/{personId}` | Обновить персону | EDITOR+ |
+| `DELETE` | `/persons/{personId}` | Удалить персону | EDITOR+ |
+| `GET` | `/persons/graph` | Граф (все персоны + связи) | VIEWER+ |
+| `GET` | `/persons/search?q=` | Поиск по имени | VIEWER+ |
+| `POST` | `/persons/relationships` | Добавить связь | EDITOR+ |
+| `DELETE` | `/persons/relationships` | Удалить связь | EDITOR+ |
+| `GET` | `/persons/{personId}/history` | История изменений | VIEWER+ |
+| `POST` | `/persons/{personId}/avatar` | Загрузить аватар (multipart) | EDITOR+ |
 
-**POST /trees/{treeId}/persons** — тело запроса:
+**Тело запроса для создания/обновления персоны:**
 ```json
 {
   "firstName": "Иван",
   "lastName": "Иванов",
   "middleName": "Иванович",
+  "gender": "MALE",
   "birthDate": "1990-01-15",
   "deathDate": null,
   "birthPlace": "Москва",
   "deathPlace": null,
-  "biography": "Текст биографии...",
-  "gender": "MALE"
+  "biography": "Текст биографии..."
 }
 ```
 
-**GET /trees/{treeId}/persons/{personId}** — ответ:
-```json
-{
-  "success": true,
-  "data": {
-    "id": 42,
-    "treeId": 1,
-    "firstName": "Иван",
-    "lastName": "Иванов",
-    "middleName": "Иванович",
-    "birthDate": "1990-01-15",
-    "deathDate": null,
-    "birthPlace": "Москва",
-    "deathPlace": null,
-    "biography": "...",
-    "gender": "MALE",
-    "fullName": "Иванов Иван Иванович",
-    "relationships": [
-      {
-        "id": 10,
-        "person1Id": 41,
-        "person2Id": 42,
-        "type": "PARENT_CHILD"
-      }
-    ]
-  }
-}
-```
-
-**POST /trees/{treeId}/persons/relationships** — тело запроса:
+**Тело запроса для связи:**
 ```json
 {
   "person1Id": 41,
@@ -638,23 +487,361 @@ Authorization: Bearer <JWT-токен>
 }
 ```
 
-**GET /trees/{treeId}/persons/graph** — ответ (массив PersonDTO со всеми связями):
+**Ответ PersonDTO:**
+```json
+{
+  "id": 42,
+  "treeId": 1,
+  "firstName": "Иван",
+  "lastName": "Иванов",
+  "middleName": "Иванович",
+  "fullName": "Иванов Иван Иванович",
+  "gender": "MALE",
+  "birthDate": "1990-01-15",
+  "deathDate": null,
+  "birthPlace": "Москва",
+  "deathPlace": null,
+  "biography": "...",
+  "avatarUrl": "https://storage.yandexcloud.net/...",
+  "relationships": [
+    { "id": 10, "person1Id": 41, "person2Id": 42, "type": "PARENT_CHILD" }
+  ]
+}
+```
+
+### 7.6 MediaFileController — `/api/trees/{treeId}/persons/{personId}/media`
+
+| Метод | Путь | Описание | Роль |
+|-------|------|----------|------|
+| `POST` | `/media` | Загрузить файл (multipart: `file`, `type`, `description?`) | EDITOR+ |
+| `GET` | `/media` | Список файлов персоны | VIEWER+ |
+| `GET` | `/media/{fileId}/download` | Скачать файл | VIEWER+ |
+| `DELETE` | `/media/{fileId}` | Удалить файл | EDITOR+ |
+
+Допустимые типы файлов: `PHOTO`, `DOCUMENT`, `VIDEO`, `AUDIO`  
+Максимальный размер: 50 МБ на файл, 50 файлов на персону
+
+### 7.7 CommentController — `/api/trees/{treeId}/persons/{personId}/comments`
+
+| Метод | Путь | Описание | Роль |
+|-------|------|----------|------|
+| `GET` | `/comments` | Список комментариев | VIEWER+ |
+| `POST` | `/comments` | Добавить комментарий `{ content }` | VIEWER+ |
+| `PUT` | `/comments/{commentId}` | Редактировать комментарий | Автор |
+| `DELETE` | `/comments/{commentId}` | Удалить комментарий | Автор / OWNER |
+
+### 7.8 NotificationController — `/api/notifications`
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/notifications` | Список уведомлений пользователя |
+| `GET` | `/notifications/unread-count` | Количество непрочитанных |
+| `PUT` | `/notifications/{id}/read` | Отметить как прочитанное |
+| `PUT` | `/notifications/read-all` | Отметить все как прочитанные |
+| `DELETE` | `/notifications/{id}` | Удалить уведомление |
+
+### 7.9 AiController — `/api/ai`
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `POST` | `/api/ai/extract-facts` | Анализ биографии через YandexGPT |
+
+**Тело запроса:**
+```json
+{
+  "biography": "Иван Иванов родился 15 января 1990 года в Москве...",
+  "personId": 42
+}
+```
+
+**Ответ:**
 ```json
 {
   "success": true,
-  "data": [
-    {
-      "id": 41,
-      "fullName": "Иванов Пётр Сергеевич",
-      "gender": "MALE",
-      "relationships": [
-        { "id": 10, "person1Id": 41, "person2Id": 42, "type": "PARENT_CHILD" },
-        { "id": 11, "person1Id": 40, "person2Id": 41, "type": "PARTNERSHIP" }
-      ]
-    },
-    {
-      "id": 42,
-      "fullName": "Иванов Иван Петрович",
-      "gender": "MALE",
-      "relationships": [
-        { "id": 10, "person1Id":
+  "data": {
+    "dates": ["15 января 1990 года", "2015 год"],
+    "places": ["Москва", "Санкт-Петербург"],
+    "professions": ["инженер", "преподаватель"],
+    "relatives": ["Иванов Пётр (отец)", "Иванова Мария (мать)"],
+    "error": null
+  }
+}
+```
+
+Ограничение: 10 запросов в минуту на пользователя (rate limiting).
+
+---
+
+## 8. Безопасность и авторизация
+
+### 8.1 JWT
+
+- Алгоритм: HMAC-SHA256
+- Срок действия: 1 час (настраивается через `FAMILY_AUTH_JWT_LIFETIME`)
+- Payload: `sub` = email пользователя
+- Секрет: одинаковый в auth-service и tree-service (переменная `JWT_SECRET`)
+
+### 8.2 Модель ролей
+
+```
+OWNER  ≥  EDITOR  ≥  VIEWER
+  2          1          0      (ordinal)
+```
+
+Проверка: `userRole.ordinal() >= requiredRole.ordinal()`
+
+| Действие | Минимальная роль |
+|----------|-----------------|
+| Просмотр дерева, персон, медиа | VIEWER |
+| Добавление/редактирование персон, связей | EDITOR |
+| Загрузка медиафайлов | EDITOR |
+| Добавление комментариев | VIEWER |
+| Приглашение участников | OWNER |
+| Удаление дерева | OWNER |
+| Управление публичной ссылкой | OWNER |
+
+### 8.3 Верификация email
+
+При регистрации пользователь получает письмо со ссылкой. До верификации `user.enabled = false`, вход невозможен. Токен верификации хранится в таблице `tokens` с типом `VERIFY` и сроком действия 24 часа.
+
+Планировщик `TokenCleanUpScheduler` ежедневно в 3:00 удаляет истёкшие токены.
+
+---
+
+## 9. AI-анализ биографий (YandexGPT)
+
+### 9.1 Как работает
+
+Сервис [`AiService`](tree-service/src/main/java/com/project/familytree/tree/services/AiService.java) отправляет биографию в YandexGPT Completion API и извлекает структурированные факты.
+
+### 9.2 Системный промпт
+
+```
+Ты — помощник по генеалогии. Проанализируй биографию и извлеки:
+- dates: список дат (рождение, смерть, события)
+- places: список мест (города, страны)
+- professions: список профессий и занятий
+- relatives: список упомянутых родственников с указанием степени родства
+
+Верни ТОЛЬКО валидный JSON без пояснений.
+```
+
+### 9.3 Rate limiting
+
+10 запросов в минуту на пользователя. Реализовано через `ConcurrentHashMap<Long, RateLimitData>` в памяти сервиса.
+
+### 9.4 Конфигурация
+
+```properties
+ai.yandex.api-key=<IAM или API-ключ>
+ai.yandex.folder-id=<ID каталога Yandex Cloud>
+ai.yandex.model-uri=gpt://<folder-id>/yandexgpt/latest
+```
+
+---
+
+## 10. Управление медиафайлами
+
+### 10.1 Хранилище
+
+Файлы хранятся в **Yandex Object Storage** (S3-совместимый). Путь к файлу: `{treeId}/{personId}/{UUID}.{ext}`.
+
+### 10.2 Ограничения
+
+- Максимальный размер файла: **50 МБ**
+- Максимальное количество файлов на персону: **50**
+- Допустимые типы: `PHOTO`, `DOCUMENT`, `VIDEO`, `AUDIO`
+- Допустимые расширения: jpg, jpeg, png, gif, webp, pdf, doc, docx, mp4, avi, mov, mp3, wav
+
+### 10.3 Аватар персоны
+
+Аватар загружается через отдельный эндпоинт `POST /persons/{personId}/avatar` (multipart). Сохраняется в S3, URL записывается в поле `avatar_url` таблицы `persons`.
+
+---
+
+## 11. Уведомления
+
+### 11.1 Когда создаются уведомления
+
+| Событие | Получатели |
+|---------|-----------|
+| Добавлен комментарий к персоне | Все EDITOR и OWNER дерева (кроме автора) |
+| Принято приглашение в дерево | OWNER дерева |
+| Добавлена персона | Все участники дерева (кроме добавившего) |
+
+### 11.2 Структура уведомления
+
+```json
+{
+  "id": 1,
+  "userId": 5,
+  "message": "Пользователь Иван добавил комментарий к персоне Пётр Иванов",
+  "read": false,
+  "createdAt": "2026-03-11T12:00:00Z"
+}
+```
+
+---
+
+## 12. Тестирование
+
+### 12.1 Покрытие
+
+| Модуль | Тест-класс | Тестов |
+|--------|-----------|--------|
+| auth-service | `SecurityControllerTest` | 14 |
+| auth-service | `TokenServiceTest` | 13 |
+| tree-service | `MediaFileServiceTest` | 15 |
+| tree-service | `NotificationServiceTest` | 14 |
+
+### 12.2 Запуск тестов
+
+```bash
+# Все тесты
+cd FamilyTree-API
+mvn test
+
+# Только auth-service
+mvn test -pl auth-service
+
+# Только tree-service
+mvn test -pl tree-service
+```
+
+### 12.3 Стратегия
+
+- **Unit-тесты** с `@ExtendWith(MockitoExtension.class)` — сервисы тестируются изолированно
+- **Web-тесты** с `@WebMvcTest` — контроллеры тестируются с MockMvc
+- Все зависимости мокируются через `@MockBean` / `@Mock`
+
+---
+
+## 13. Запуск локально
+
+### 13.1 Требования
+
+- Java 17+
+- Maven 3.9+
+- Docker + Docker Compose
+- PostgreSQL (локальный или Yandex Managed)
+
+### 13.2 Сборка
+
+```bash
+cd FamilyTree-API
+
+# Сборка всех модулей (включая стартер)
+mvn clean install -DskipTests
+
+# Только сборка без тестов
+mvn package -DskipTests
+```
+
+### 13.3 Запуск через Docker Compose
+
+```bash
+cd FamilyTree-API
+
+# Создать .env файл (см. раздел 14)
+cp .env.example .env
+# Заполнить переменные в .env
+
+# Запустить оба сервиса
+docker-compose up -d
+
+# Проверить статус
+docker-compose ps
+
+# Логи
+docker-compose logs -f auth-service
+docker-compose logs -f tree-service
+```
+
+### 13.4 Проверка работоспособности
+
+```bash
+# auth-service
+curl http://localhost:8081/api/auth/ping
+
+# tree-service (Swagger)
+open http://localhost:8080/swagger-ui.html
+```
+
+---
+
+## 14. Переменные окружения
+
+### 14.1 Обязательные
+
+| Переменная | Описание | Пример |
+|-----------|----------|--------|
+| `SPRING_DATASOURCE_URL` | JDBC URL PostgreSQL | `jdbc:postgresql://host:5432/familytree?ssl=true&sslmode=verify-full` |
+| `SPRING_DATASOURCE_USERNAME` | Пользователь БД | `familytree_user` |
+| `SPRING_DATASOURCE_PASSWORD` | Пароль БД | `secret` |
+| `JWT_SECRET` | Секрет для HMAC-SHA256 (≥32 символа) | `my-super-secret-key-32-chars-min` |
+
+### 14.2 Почта (SMTP)
+
+| Переменная | Описание | По умолчанию |
+|-----------|----------|-------------|
+| `MAIL_HOST` | SMTP-сервер | `smtp.yandex.ru` |
+| `MAIL_PORT` | SMTP-порт | `587` |
+| `MAIL_USERNAME` | Email отправителя | — |
+| `MAIL_PASSWORD` | Пароль / app-password | — |
+
+### 14.3 Приложение
+
+| Переменная | Описание | По умолчанию |
+|-----------|----------|-------------|
+| `APP_BASE_URL` | URL фронтенда (для ссылок в письмах) | `http://localhost:3000` |
+| `CORS_ALLOWED_ORIGINS` | Разрешённые origins (через запятую) | `http://localhost:3000` |
+| `APP_EMAIL_VERIFICATION_REQUIRED` | Требовать верификацию email | `true` |
+
+### 14.4 AI (только tree-service)
+
+| Переменная | Описание |
+|-----------|----------|
+| `AI_YANDEX_API_KEY` | API-ключ YandexGPT |
+| `AI_YANDEX_FOLDER_ID` | ID каталога Yandex Cloud |
+| `AI_YANDEX_ASSISTANT_ID` | ID ассистента (опционально) |
+
+### 14.5 S3 / Yandex Object Storage (только tree-service)
+
+| Переменная | Описание | По умолчанию |
+|-----------|----------|-------------|
+| `S3_ACCESS_KEY` | Access Key ID | — |
+| `S3_SECRET_KEY` | Secret Access Key | — |
+| `S3_BUCKET` | Имя бакета | `familytree` |
+| `S3_ENDPOINT` | S3 endpoint | `https://storage.yandexcloud.net` |
+| `S3_REGION` | Регион | `ru-central1` |
+
+### 14.6 Пример .env файла
+
+```env
+# Database (Yandex Managed PostgreSQL)
+SPRING_DATASOURCE_URL=jdbc:postgresql://rc1b-xxx.mdb.yandexcloud.net:6432/familytree?ssl=true&sslmode=verify-full
+SPRING_DATASOURCE_USERNAME=familytree_user
+SPRING_DATASOURCE_PASSWORD=your_db_password
+
+# JWT (одинаковый для обоих сервисов!)
+JWT_SECRET=your-very-long-secret-key-at-least-32-characters
+
+# Mail
+MAIL_HOST=smtp.yandex.ru
+MAIL_PORT=587
+MAIL_USERNAME=noreply@yourdomain.ru
+MAIL_PASSWORD=your_app_password
+
+# App
+APP_BASE_URL=http://158.160.46.186:3000
+CORS_ALLOWED_ORIGINS=http://158.160.46.186:3000,http://localhost:3000
+
+# AI (опционально)
+AI_YANDEX_API_KEY=your_yandex_api_key
+AI_YANDEX_FOLDER_ID=your_folder_id
+
+# S3
+S3_ACCESS_KEY=your_s3_access_key
+S3_SECRET_KEY=your_s3_secret_key
+S3_BUCKET=familytree
+```
