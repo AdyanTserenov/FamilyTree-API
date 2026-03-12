@@ -10,6 +10,7 @@ import com.project.familytree.tree.dto.RelationshipDTO;
 import com.project.familytree.tree.dto.TreeDTO;
 import com.project.familytree.tree.dto.TreeMemberDTO;
 import com.project.familytree.tree.impls.HistoryAction;
+import com.project.familytree.tree.impls.NotificationType;
 import com.project.familytree.tree.impls.RelationshipType;
 import com.project.familytree.tree.impls.TreeRole;
 import com.project.familytree.tree.models.Invitation;
@@ -38,6 +39,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class TreeService {
@@ -52,6 +54,7 @@ public class TreeService {
     private final MediaFileRepository mediaFileRepository;
     private final S3Service s3Service;
     private final PersonHistoryRepository personHistoryRepository;
+    private final NotificationService notificationService;
 
     @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:3000}")
     private String baseUrl;
@@ -65,7 +68,8 @@ public class TreeService {
                        RelationshipRepository relationshipRepository,
                        MediaFileRepository mediaFileRepository,
                        S3Service s3Service,
-                       PersonHistoryRepository personHistoryRepository) {
+                       PersonHistoryRepository personHistoryRepository,
+                       NotificationService notificationService) {
         this.userService = userService;
         this.treeRepository = treeRepository;
         this.membershipRepository = membershipRepository;
@@ -76,6 +80,7 @@ public class TreeService {
         this.mediaFileRepository = mediaFileRepository;
         this.s3Service = s3Service;
         this.personHistoryRepository = personHistoryRepository;
+        this.notificationService = notificationService;
     }
 
     // ─── Tree management ────────────────────────────────────────────────────────
@@ -247,9 +252,21 @@ public class TreeService {
             throw new AccessDeniedException("Вы не можете принять это приглашение");
         }
 
-        addMember(invitation.getTree().getId(), currentUserId, invitation.getRole());
+        Long treeId = invitation.getTree().getId();
+        addMember(treeId, currentUserId, invitation.getRole());
         invitation.setAccepted(true);
         invitationRepository.save(invitation);
+
+        // Notify the tree OWNER that a new member has joined
+        membershipRepository.findByTreeId(treeId).stream()
+                .filter(m -> m.getRole() == TreeRole.OWNER)
+                .map(m -> m.getUser().getId())
+                .forEach(ownerId -> {
+                    String joinerName = currentUser.getFirstName() + " " + currentUser.getLastName();
+                    String content = joinerName + " принял(а) приглашение в дерево «" + invitation.getTree().getName() + "»";
+                    String link = "/trees/" + treeId;
+                    notificationService.createNotification(ownerId, NotificationType.MEMBER_JOINED, content, link);
+                });
     }
 
     // ─── Person management ───────────────────────────────────────────────────────
@@ -275,6 +292,20 @@ public class TreeService {
         com.project.familytree.auth.models.User user = userService.findById(userId);
         String userName = user.getFirstName() + " " + user.getLastName();
         recordHistory(person.getId(), treeId, userId, userName, HistoryAction.CREATE, null, null, null);
+
+        // Notify all tree members (except the creator) about the new person
+        final Long savedPersonId = person.getId();
+        final String personFullName = person.getFullName();
+        List<Long> recipientIds = membershipRepository.findByTreeId(treeId).stream()
+                .map(m -> m.getUser().getId())
+                .filter(id -> !id.equals(userId))
+                .collect(Collectors.toList());
+        if (!recipientIds.isEmpty()) {
+            String content = "Добавлена новая персона: " + personFullName;
+            String link = "/trees/" + treeId + "/persons/" + savedPersonId;
+            notificationService.createNotificationsForUsers(
+                    recipientIds, NotificationType.PERSON_ADDED, content, link);
+        }
 
         return person;
     }
