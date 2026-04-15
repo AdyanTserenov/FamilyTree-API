@@ -9,6 +9,8 @@ import java.util.List;
 @Repository
 public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
 
+    long countByPersonId(Long personId);
+
     List<MediaFile> findByPersonId(Long personId);
 
     List<MediaFile> findByTreeId(Long treeId);

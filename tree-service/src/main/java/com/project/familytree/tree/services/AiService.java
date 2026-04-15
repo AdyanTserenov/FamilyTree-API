@@ -21,13 +21,13 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Сервис AI-интеграции для извлечения фактов из биографий.
  * Использует Yandex GPT Completion API (YandexGPT Pro).
- * Rate limiting: 10 запросов в минуту на пользователя.
+ * Rate limiting: 5 запросов в час на пользователя.
  */
 @Service
 public class AiService {
 
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
-    private static final int MAX_REQUESTS_PER_MINUTE = 10;
+    private static final int MAX_REQUESTS_PER_HOUR = 5;
 
     @Value("${ai.yandex.api-key:}")
     private String apiKey;
@@ -59,7 +59,7 @@ public class AiService {
     public AiResponse extractFacts(String biography, Long userId) {
         if (!checkRateLimit(userId)) {
             log.warn("Rate limit exceeded for user {}", userId);
-            return AiResponse.error("Превышен лимит запросов. Попробуйте через минуту.");
+            return AiResponse.error("Превышен лимит запросов. Попробуйте через час.");
         }
 
         if (apiKey == null || apiKey.isBlank()) {
@@ -208,13 +208,13 @@ public class AiService {
 
     /**
      * Проверяет и обновляет счётчик запросов для пользователя.
-     * Окно: 1 минута (60 000 мс).
+     * Окно: 1 час (3 600 000 мс).
      *
      * @return true если запрос разрешён, false если лимит превышен
      */
     private boolean checkRateLimit(Long userId) {
         long now = System.currentTimeMillis();
-        long windowMs = 60_000L;
+        long windowMs = 3_600_000L;
 
         rateLimitMap.compute(userId, (id, data) -> {
             if (data == null || now - data[1] > windowMs) {
@@ -225,6 +225,6 @@ public class AiService {
         });
 
         long[] data = rateLimitMap.get(userId);
-        return data != null && data[0] <= MAX_REQUESTS_PER_MINUTE;
+        return data != null && data[0] <= MAX_REQUESTS_PER_HOUR;
     }
 }

@@ -39,6 +39,7 @@ import java.util.UUID;
 public class MediaFileService {
 
     private static final Logger log = LoggerFactory.getLogger(MediaFileService.class);
+    private static final int MAX_MEDIA_FILES = 10;
 
     /** Whitelist of allowed file extensions. Executable and script types are blocked. */
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
@@ -88,6 +89,10 @@ public class MediaFileService {
                     .orElseThrow(() -> new RuntimeException("Персона не найдена"));
             if (!person.getTree().getId().equals(treeId)) {
                 throw new AccessDeniedException("Персона не принадлежит этому дереву");
+            }
+            long existingCount = mediaFileRepository.countByPersonId(personId);
+            if (existingCount >= MAX_MEDIA_FILES) {
+                throw new BusinessException("Достигнут лимит медиафайлов (" + MAX_MEDIA_FILES + ") для данной персоны");
             }
         }
 

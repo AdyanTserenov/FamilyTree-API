@@ -257,6 +257,10 @@ public class TreeService {
         Invitation invitation = invitationRepository.findByToken(token)
                 .orElseThrow(() -> new ResourceNotFoundException("Неверная или просроченная ссылка"));
 
+        if (invitation.isAccepted()) {
+            throw new BusinessException("Приглашение уже было принято");
+        }
+
         if (invitation.getExpiresAt().isBefore(Instant.now())) {
             throw new BusinessException("Срок действия приглашения истёк");
         }
