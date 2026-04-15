@@ -28,6 +28,8 @@ import com.project.familytree.tree.repositories.TreeMembershipRepository;
 import com.project.familytree.tree.repositories.TreeRepository;
 import com.project.familytree.tree.exceptions.BusinessException;
 import com.project.familytree.tree.exceptions.ResourceNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -44,6 +46,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class TreeService {
+
+    private static final Logger log = LoggerFactory.getLogger(TreeService.class);
 
     private final UserService userService;
     private final TreeRepository treeRepository;
@@ -121,6 +125,13 @@ public class TreeService {
             throw new AccessDeniedException("Только владелец может удалять дерево");
         }
         Tree tree = getById(treeId);
+
+        // Delete S3 files for all persons in the tree before deleting the tree
+        List<Person> persons = personRepository.findByTreeId(treeId);
+        for (Person person : persons) {
+            deletePersonS3Files(person);
+        }
+
         treeRepository.delete(tree);
     }
 
@@ -436,7 +447,8 @@ public class TreeService {
         List<Relationship> relationships = relationshipRepository.findByTreeIdAndPersonId(treeId, personId);
         relationshipRepository.deleteAll(relationships);
 
-        // Удаляем все медиафайлы персоны
+        // Удаляем все медиафайлы персоны из S3 и БД
+        deletePersonS3Files(person);
         mediaFileRepository.deleteByPersonId(personId);
 
         personRepository.delete(person);
@@ -561,6 +573,35 @@ public class TreeService {
                         h.getCreatedAt() != null ? h.getCreatedAt().toString() : null
                 ))
                 .toList();
+    }
+
+    // ─── S3 cleanup helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Deletes all S3 objects associated with a person (media files + avatar).
+     * Does NOT delete DB records — that is handled by the caller.
+     * Failures are logged as warnings and do not abort the operation.
+     */
+    private void deletePersonS3Files(Person person) {
+        // Delete media files from S3
+        List<com.project.familytree.tree.models.MediaFile> mediaFiles =
+                mediaFileRepository.findByPersonId(person.getId());
+        for (com.project.familytree.tree.models.MediaFile file : mediaFiles) {
+            try {
+                s3Service.delete(file.getFilePath());
+            } catch (Exception e) {
+                log.warn("Failed to delete media file {} from S3: {}", file.getId(), e.getMessage());
+            }
+        }
+        // Delete avatar from S3
+        String avatarKey = person.getAvatarUrl();
+        if (avatarKey != null && !avatarKey.isEmpty()) {
+            try {
+                s3Service.delete(avatarKey);
+            } catch (Exception e) {
+                log.warn("Failed to delete avatar from S3 for person {}: {}", person.getId(), e.getMessage());
+            }
+        }
     }
 
     private void recordHistory(Long personId, Long treeId, Long userId, String userName,
