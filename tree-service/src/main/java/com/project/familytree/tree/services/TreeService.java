@@ -37,6 +37,7 @@ import java.nio.file.AccessDeniedException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -154,10 +155,23 @@ public class TreeService {
 
     public List<TreeDTO> getUserTrees(Long userId) {
         List<TreeMembership> memberships = membershipRepository.findByUserId(userId);
+
+        // Bulk-fetch person counts for all trees in a single query (no N+1)
+        List<Long> treeIds = memberships.stream()
+                .map(tm -> tm.getTree().getId())
+                .collect(Collectors.toList());
+        Map<Long, Long> countMap = personRepository.countByTreeIds(treeIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1]
+                ));
+
         return memberships.stream()
                 .map(tm -> {
                     Tree t = tm.getTree();
-                    return new TreeDTO(t.getId(), t.getName(), t.getCreatedAt(), tm.getRole(), t.getPublicLinkToken());
+                    long personCount = countMap.getOrDefault(t.getId(), 0L);
+                    return new TreeDTO(t.getId(), t.getName(), t.getCreatedAt(), tm.getRole(), t.getPublicLinkToken(), personCount);
                 })
                 .toList();
     }

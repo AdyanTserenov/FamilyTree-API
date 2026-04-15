@@ -24,4 +24,11 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
            "LOWER(p.lastName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(p.middleName) LIKE LOWER(CONCAT('%', :q, '%')))")
     List<Person> searchByName(@Param("treeId") Long treeId, @Param("q") String q);
+
+    /**
+     * Bulk count of persons grouped by treeId — used to populate personCount in TreeDTO
+     * without N+1 queries.
+     */
+    @Query("SELECT p.tree.id, COUNT(p) FROM Person p WHERE p.tree.id IN :treeIds GROUP BY p.tree.id")
+    List<Object[]> countByTreeIds(@Param("treeIds") List<Long> treeIds);
 }
