@@ -4,6 +4,7 @@ import com.project.familytree.auth.models.User;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.MediaFileDTO;
 import com.project.familytree.tree.exceptions.BusinessException;
+import com.project.familytree.tree.exceptions.ResourceNotFoundException;
 import com.project.familytree.tree.impls.MediaFileType;
 import com.project.familytree.tree.models.MediaFile;
 import com.project.familytree.tree.models.Person;
@@ -81,12 +82,12 @@ public class MediaFileService {
         }
 
         Tree tree = treeRepository.findById(treeId)
-                .orElseThrow(() -> new RuntimeException("Дерево не найдено"));
+                .orElseThrow(() -> new ResourceNotFoundException("Дерево не найдено"));
 
         Person person = null;
         if (personId != null) {
             person = personRepository.findById(personId)
-                    .orElseThrow(() -> new RuntimeException("Персона не найдена"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Персона не найдена"));
             if (!person.getTree().getId().equals(treeId)) {
                 throw new AccessDeniedException("Персона не принадлежит этому дереву");
             }
@@ -170,7 +171,7 @@ public class MediaFileService {
         }
 
         MediaFile mediaFile = mediaFileRepository.findById(fileId)
-                .orElseThrow(() -> new RuntimeException("Файл не найден"));
+                .orElseThrow(() -> new ResourceNotFoundException("Файл не найден"));
 
         if (!mediaFile.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Файл не принадлежит этому дереву");
@@ -192,7 +193,7 @@ public class MediaFileService {
         }
 
         MediaFile mediaFile = mediaFileRepository.findById(fileId)
-                .orElseThrow(() -> new RuntimeException("Файл не найден"));
+                .orElseThrow(() -> new ResourceNotFoundException("Файл не найден"));
 
         if (!mediaFile.getTree().getId().equals(treeId)) {
             throw new AccessDeniedException("Файл не принадлежит этому дереву");

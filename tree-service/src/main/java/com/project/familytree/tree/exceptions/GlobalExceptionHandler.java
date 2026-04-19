@@ -46,7 +46,7 @@ public class GlobalExceptionHandler {
         }
         log.warn("Validation failed: {}", errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(CustomApiResponse.success("Ошибка валидации", errors));
+                .body(CustomApiResponse.error("Ошибка валидации"));
     }
 
     /**

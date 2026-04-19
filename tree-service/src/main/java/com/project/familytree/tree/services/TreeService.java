@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -162,6 +163,12 @@ public class TreeService {
 
     public boolean isOwner(Long treeId, Long userId) {
         return hasRole(treeId, userId, TreeRole.OWNER);
+    }
+
+    public String getMyRole(Long treeId, Long userId) throws AccessDeniedException {
+        return membershipRepository.findByTreeIdAndUserId(treeId, userId)
+                .map(m -> m.getRole().name())
+                .orElseThrow(() -> new AccessDeniedException("Вы не являетесь участником этого дерева"));
     }
 
     public List<TreeDTO> getUserTrees(Long userId) {
@@ -503,8 +510,21 @@ public class TreeService {
         }
 
         List<Person> persons = personRepository.findByTreeId(treeId);
+
+        // Load all relationships for the tree in a single query (avoids N+1)
+        List<Relationship> allRelationships = relationshipRepository.findByTreeId(treeId);
+        Map<Long, List<Relationship>> relsByPersonId = allRelationships.stream()
+                .flatMap(r -> java.util.stream.Stream.of(
+                        new java.util.AbstractMap.SimpleEntry<>(r.getPerson1().getId(), r),
+                        new java.util.AbstractMap.SimpleEntry<>(r.getPerson2().getId(), r)
+                ))
+                .collect(Collectors.groupingBy(
+                        java.util.AbstractMap.SimpleEntry::getKey,
+                        Collectors.mapping(java.util.AbstractMap.SimpleEntry::getValue, Collectors.toList())
+                ));
+
         return persons.stream()
-                .map(p -> convertToDTO(p, treeId))
+                .map(p -> convertToDTO(p, treeId, relsByPersonId))
                 .toList();
     }
 
@@ -638,7 +658,15 @@ public class TreeService {
 
     public PersonDTO convertToDTO(Person person, Long treeId) {
         List<Relationship> relationships = relationshipRepository.findByTreeIdAndPersonId(treeId, person.getId());
+        return buildPersonDTO(person, relationships);
+    }
 
+    private PersonDTO convertToDTO(Person person, Long treeId, Map<Long, List<Relationship>> relsByPersonId) {
+        List<Relationship> relationships = relsByPersonId.getOrDefault(person.getId(), Collections.emptyList());
+        return buildPersonDTO(person, relationships);
+    }
+
+    private PersonDTO buildPersonDTO(Person person, List<Relationship> relationships) {
         List<RelationshipDTO> relationshipDTOs = relationships.stream()
                 .map(r -> new RelationshipDTO(
                         r.getId(),

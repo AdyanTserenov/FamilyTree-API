@@ -169,4 +169,15 @@ public class TreeController {
         List<PersonDTO> persons = treeService.getPublicTree(token);
         return ResponseEntity.ok(CustomApiResponse.successData(persons));
     }
+
+    @GetMapping("/{treeId}/my-role")
+    @Operation(summary = "Получить роль текущего пользователя в дереве",
+               description = "Возвращает роль текущего пользователя: OWNER, EDITOR или VIEWER. 403 если не участник.")
+    public ResponseEntity<CustomApiResponse<String>> getMyRole(
+            @PathVariable Long treeId) throws AccessDeniedException {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        String role = treeService.getMyRole(treeId, userId);
+        return ResponseEntity.ok(CustomApiResponse.successData(role));
+    }
 }
