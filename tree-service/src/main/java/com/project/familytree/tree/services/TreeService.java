@@ -313,6 +313,11 @@ public class TreeService {
             throw new AccessDeniedException("Нет прав на редактирование дерева");
         }
 
+        if (request.getBirthDate() != null && request.getDeathDate() != null
+                && request.getBirthDate().isAfter(request.getDeathDate())) {
+            throw new BusinessException("Дата рождения не может быть позже даты смерти");
+        }
+
         Tree tree = getById(treeId);
         Person person = new Person(tree, request.getFirstName(), request.getLastName(),
                 request.getMiddleName(), request.getGender());
@@ -386,6 +391,11 @@ public class TreeService {
     public Person updatePerson(Long treeId, Long personId, PersonRequest request, Long userId) throws AccessDeniedException {
         if (!canEdit(treeId, userId)) {
             throw new AccessDeniedException("Нет прав на редактирование дерева");
+        }
+
+        if (request.getBirthDate() != null && request.getDeathDate() != null
+                && request.getBirthDate().isAfter(request.getDeathDate())) {
+            throw new BusinessException("Дата рождения не может быть позже даты смерти");
         }
 
         Person person = personRepository.findById(personId)
