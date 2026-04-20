@@ -1,12 +1,15 @@
 package com.project.familytree.tree.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * Запрос на создание или редактирование комментария
+ * Запрос на создание или редактирование комментария.
+ * Accepts both "content" and "text" field names for compatibility.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CommentRequest {
 
     @NotBlank(message = "Текст комментария не может быть пустым")
@@ -27,6 +30,9 @@ public class CommentRequest {
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+
+    /** Alias for "content" — accepts "text" field from legacy/test clients */
+    public void setText(String text) { if (this.content == null) this.content = text; }
 
     public Long getParentCommentId() { return parentCommentId; }
     public void setParentCommentId(Long parentCommentId) { this.parentCommentId = parentCommentId; }

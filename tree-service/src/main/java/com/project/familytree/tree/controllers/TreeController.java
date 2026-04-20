@@ -3,10 +3,14 @@ package com.project.familytree.tree.controllers;
 import com.project.familytree.auth.dto.CustomApiResponse;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.PersonDTO;
+import com.project.familytree.tree.dto.PersonRelationshipRequest;
+import com.project.familytree.tree.dto.RelationshipDTO;
 import com.project.familytree.tree.dto.TreeDTO;
 import com.project.familytree.tree.dto.InviteRequest;
 import com.project.familytree.tree.dto.TreeMemberDTO;
 import com.project.familytree.tree.dto.TreeRequest;
+import com.project.familytree.tree.models.Relationship;
+import com.project.familytree.tree.repositories.RelationshipRepository;
 import com.project.familytree.tree.services.TreeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,13 +34,15 @@ public class TreeController {
 
     private final TreeService treeService;
     private final UserService userService;
+    private final RelationshipRepository relationshipRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:3000}")
     private String baseUrl;
 
-    public TreeController(TreeService treeService, UserService userService) {
+    public TreeController(TreeService treeService, UserService userService, RelationshipRepository relationshipRepository) {
         this.treeService = treeService;
         this.userService = userService;
+        this.relationshipRepository = relationshipRepository;
     }
 
     @GetMapping
@@ -74,6 +80,26 @@ public class TreeController {
         log.info("Updating tree {} by user {}", treeId, userId);
         TreeDTO updated = treeService.updateTree(treeId, treeRequest.getName(), userId);
         return ResponseEntity.ok(CustomApiResponse.successData(updated));
+    }
+
+    @GetMapping("/{treeId}")
+    @Operation(summary = "Получить дерево по ID",
+               description = "Возвращает дерево по ID. Требует роль VIEWER или выше.")
+    public ResponseEntity<CustomApiResponse<TreeDTO>> getTree(
+            @PathVariable Long treeId) throws AccessDeniedException {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        if (!treeService.canView(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на просмотр дерева");
+        }
+        com.project.familytree.tree.models.Tree tree = treeService.getById(treeId);
+        com.project.familytree.tree.impls.TreeRole role = treeService.getUserTrees(userId).stream()
+                .filter(t -> t.getId().equals(treeId))
+                .map(TreeDTO::getRole)
+                .findFirst()
+                .orElse(com.project.familytree.tree.impls.TreeRole.VIEWER);
+        TreeDTO dto = new TreeDTO(tree.getId(), tree.getName(), tree.getCreatedAt(), role, tree.getPublicLinkToken(), 0L);
+        return ResponseEntity.ok(CustomApiResponse.successData(dto));
     }
 
     @DeleteMapping("/{treeId}")
@@ -179,5 +205,56 @@ public class TreeController {
         Long userId = userService.findIdByDetails(userDetails);
         String role = treeService.getMyRole(treeId, userId);
         return ResponseEntity.ok(CustomApiResponse.successData(role));
+    }
+
+    // ─── Relationship alias endpoints (POST/GET/DELETE /trees/{treeId}/relationships) ─
+
+    @PostMapping("/{treeId}/relationships")
+    @Operation(summary = "Добавить связь между персонами (alias)",
+               description = "Алиас для POST /trees/{treeId}/persons/relationships")
+    public ResponseEntity<CustomApiResponse<String>> addRelationshipAlias(
+            @PathVariable Long treeId,
+            @Valid @RequestBody PersonRelationshipRequest relationshipRequest) throws AccessDeniedException {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        treeService.addRelationship(treeId, relationshipRequest, userId);
+        return ResponseEntity.ok(CustomApiResponse.successMessage("Связь добавлена"));
+    }
+
+    @GetMapping("/{treeId}/relationships")
+    @Operation(summary = "Получить все связи дерева",
+               description = "Возвращает все связи между персонами в дереве")
+    public ResponseEntity<CustomApiResponse<List<RelationshipDTO>>> getRelationships(
+            @PathVariable Long treeId) throws AccessDeniedException {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        if (!treeService.canView(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на просмотр дерева");
+        }
+        List<Relationship> rels = relationshipRepository.findByTreeId(treeId);
+        List<RelationshipDTO> dtos = rels.stream().map(r -> new RelationshipDTO(
+                r.getId(),
+                r.getPerson1().getId(),
+                r.getPerson2().getId(),
+                r.getType(),
+                new RelationshipDTO.PersonSummary(r.getPerson1().getId(), r.getPerson1().getFirstName(), r.getPerson1().getLastName()),
+                new RelationshipDTO.PersonSummary(r.getPerson2().getId(), r.getPerson2().getFirstName(), r.getPerson2().getLastName())
+        )).toList();
+        return ResponseEntity.ok(CustomApiResponse.successData(dtos));
+    }
+
+    @DeleteMapping("/{treeId}/relationships/{relationshipId}")
+    @Operation(summary = "Удалить связь по ID",
+               description = "Удаляет связь между персонами по её ID")
+    public ResponseEntity<CustomApiResponse<String>> deleteRelationshipById(
+            @PathVariable Long treeId,
+            @PathVariable Long relationshipId) throws AccessDeniedException {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userService.findIdByDetails(userDetails);
+        if (!treeService.canEdit(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на редактирование дерева");
+        }
+        relationshipRepository.deleteById(relationshipId);
+        return ResponseEntity.ok(CustomApiResponse.successMessage("Связь удалена"));
     }
 }
