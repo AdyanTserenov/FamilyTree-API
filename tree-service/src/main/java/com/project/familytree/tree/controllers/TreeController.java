@@ -54,13 +54,13 @@ public class TreeController {
     @PostMapping
     @Operation(summary = "Создать новое дерево",
                description = "Создаёт семейное дерево и назначает текущего пользователя владельцем")
-    public ResponseEntity<CustomApiResponse<String>> createTree(
+    public ResponseEntity<CustomApiResponse<TreeDTO>> createTree(
             @Valid @RequestBody TreeRequest treeRequest) {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
-        treeService.createTree(treeRequest.getName(), userId);
-        log.info("Created tree '{}' for user {}", treeRequest.getName(), userId);
-        return ResponseEntity.ok(CustomApiResponse.successMessage("Дерево создано"));
+        TreeDTO created = treeService.createTree(treeRequest.getName(), userId);
+        log.info("Created tree '{}' (id={}) for user {}", treeRequest.getName(), created.getId(), userId);
+        return ResponseEntity.ok(CustomApiResponse.successData(created));
     }
 
     @PutMapping("/{treeId}")

@@ -92,7 +92,7 @@ public class TreeService {
     // ─── Tree management ────────────────────────────────────────────────────────
 
     @Transactional
-    public void createTree(String treeName, Long ownerId) {
+    public TreeDTO createTree(String treeName, Long ownerId) {
         Tree tree = new Tree();
         tree.setName(treeName);
         tree = treeRepository.save(tree);
@@ -102,6 +102,8 @@ public class TreeService {
         owner.setUser(userService.findById(ownerId));
         owner.setRole(TreeRole.OWNER);
         membershipRepository.save(owner);
+
+        return new TreeDTO(tree.getId(), tree.getName(), tree.getCreatedAt(), TreeRole.OWNER, tree.getPublicLinkToken(), 0L);
     }
 
     public Tree getById(Long treeId) {
