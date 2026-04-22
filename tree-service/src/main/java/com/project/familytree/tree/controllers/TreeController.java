@@ -89,10 +89,11 @@ public class TreeController {
             @PathVariable Long treeId) throws AccessDeniedException {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
+        // Check existence first (throws 404 if not found), then check access (throws 403)
+        com.project.familytree.tree.models.Tree tree = treeService.getById(treeId);
         if (!treeService.canView(treeId, userId)) {
             throw new AccessDeniedException("Нет прав на просмотр дерева");
         }
-        com.project.familytree.tree.models.Tree tree = treeService.getById(treeId);
         com.project.familytree.tree.impls.TreeRole role = treeService.getUserTrees(userId).stream()
                 .filter(t -> t.getId().equals(treeId))
                 .map(TreeDTO::getRole)

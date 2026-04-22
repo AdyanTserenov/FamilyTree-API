@@ -113,10 +113,10 @@ public class TreeService {
 
     @Transactional
     public TreeDTO updateTree(Long treeId, String newName, Long userId) throws AccessDeniedException {
+        Tree tree = getById(treeId);
         if (!isOwner(treeId, userId)) {
             throw new AccessDeniedException("Только владелец может изменять дерево");
         }
-        Tree tree = getById(treeId);
         tree.setName(newName);
         tree = treeRepository.save(tree);
         return new TreeDTO(tree.getId(), tree.getName(), tree.getCreatedAt(), TreeRole.OWNER, tree.getPublicLinkToken());
@@ -124,10 +124,10 @@ public class TreeService {
 
     @Transactional
     public void deleteTree(Long treeId, Long userId) throws AccessDeniedException {
+        Tree tree = getById(treeId);
         if (!isOwner(treeId, userId)) {
             throw new AccessDeniedException("Только владелец может удалять дерево");
         }
-        Tree tree = getById(treeId);
 
         // Delete S3 files for all persons in the tree before deleting the tree
         List<Person> persons = personRepository.findByTreeId(treeId);
