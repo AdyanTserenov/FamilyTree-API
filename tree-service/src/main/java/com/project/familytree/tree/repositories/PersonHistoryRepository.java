@@ -10,4 +10,6 @@ import java.util.List;
 public interface PersonHistoryRepository extends JpaRepository<PersonHistory, Long> {
 
     List<PersonHistory> findByPersonIdAndTreeIdOrderByCreatedAtDesc(Long personId, Long treeId);
+
+    void deleteByTreeId(Long treeId);
 }

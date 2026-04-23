@@ -18,4 +18,6 @@ public interface TreeMembershipRepository extends JpaRepository<TreeMembership, 
 
     @Query("SELECT tm FROM TreeMembership tm JOIN FETCH tm.tree WHERE tm.user.id = :userId")
     List<TreeMembership> findByUserId(@Param("userId") Long userId);
+
+    void deleteByTreeId(Long treeId);
 }

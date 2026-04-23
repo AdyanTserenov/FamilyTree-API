@@ -12,6 +12,13 @@ import java.util.List;
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     /**
+     * Удалить все комментарии к персонам дерева (используется при удалении дерева)
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM Comment c WHERE c.person.id IN (SELECT p.id FROM Person p WHERE p.tree.id = :treeId)")
+    void deleteByTreeId(@Param("treeId") Long treeId);
+
+    /**
      * Все комментарии к персоне, отсортированные по дате создания (старые первые)
      */
     @Query("SELECT c FROM Comment c WHERE c.person.id = :personId ORDER BY c.createdAt ASC")

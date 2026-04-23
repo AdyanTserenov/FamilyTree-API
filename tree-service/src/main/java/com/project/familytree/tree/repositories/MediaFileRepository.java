@@ -18,4 +18,6 @@ public interface MediaFileRepository extends JpaRepository<MediaFile, Long> {
     List<MediaFile> findByTreeIdAndPersonId(Long treeId, Long personId);
 
     void deleteByPersonId(Long personId);
+
+    void deleteByTreeId(Long treeId);
 }

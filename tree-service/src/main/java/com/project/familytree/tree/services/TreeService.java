@@ -19,6 +19,7 @@ import com.project.familytree.tree.models.PersonHistory;
 import com.project.familytree.tree.models.Relationship;
 import com.project.familytree.tree.models.Tree;
 import com.project.familytree.tree.models.TreeMembership;
+import com.project.familytree.tree.repositories.CommentRepository;
 import com.project.familytree.tree.repositories.InvitationRepository;
 import com.project.familytree.tree.repositories.MediaFileRepository;
 import com.project.familytree.tree.repositories.PersonHistoryRepository;
@@ -61,6 +62,7 @@ public class TreeService {
     private final S3Service s3Service;
     private final PersonHistoryRepository personHistoryRepository;
     private final NotificationService notificationService;
+    private final CommentRepository commentRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:3000}")
     private String baseUrl;
@@ -75,7 +77,8 @@ public class TreeService {
                        MediaFileRepository mediaFileRepository,
                        S3Service s3Service,
                        PersonHistoryRepository personHistoryRepository,
-                       NotificationService notificationService) {
+                       NotificationService notificationService,
+                       CommentRepository commentRepository) {
         this.userService = userService;
         this.treeRepository = treeRepository;
         this.membershipRepository = membershipRepository;
@@ -87,6 +90,7 @@ public class TreeService {
         this.s3Service = s3Service;
         this.personHistoryRepository = personHistoryRepository;
         this.notificationService = notificationService;
+        this.commentRepository = commentRepository;
     }
 
     // ─── Tree management ────────────────────────────────────────────────────────
@@ -129,13 +133,29 @@ public class TreeService {
             throw new AccessDeniedException("Только владелец может удалять дерево");
         }
 
-        // Delete S3 files for all persons in the tree before deleting the tree
+        // Delete S3 files for all persons in the tree before deleting DB records
         List<Person> persons = personRepository.findByTreeId(treeId);
         for (Person person : persons) {
             deletePersonS3Files(person);
         }
 
-        treeRepository.delete(tree);
+        // Delete all child records in dependency order before deleting the tree
+        // 1. Comments (FK → Person)
+        commentRepository.deleteByTreeId(treeId);
+        // 2. PersonHistory (plain Long treeId column)
+        personHistoryRepository.deleteByTreeId(treeId);
+        // 3. MediaFiles (FK → Tree and Person)
+        mediaFileRepository.deleteByTreeId(treeId);
+        // 4. Relationships (FK → Tree)
+        relationshipRepository.deleteAll(relationshipRepository.findByTreeId(treeId));
+        // 5. Persons (FK → Tree)
+        personRepository.deleteAll(persons);
+        // 6. Invitations (FK → Tree)
+        invitationRepository.deleteByTreeId(treeId);
+        // 7. TreeMemberships (FK → Tree)
+        membershipRepository.deleteByTreeId(treeId);
+        // 8. Finally delete the tree itself
+        treeRepository.deleteById(treeId);
     }
 
     @Transactional
