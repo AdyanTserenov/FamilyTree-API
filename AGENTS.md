@@ -239,3 +239,4 @@ docker compose restart familytree-tree
 7. **Build order**: `family-tree-auth-starter` must be built and installed to local Maven repo BEFORE building tree-service.
 
 8. **Swagger UI**: Available at `http://158.160.55.234:8080/swagger-ui/index.html` (tree-service only).
+
