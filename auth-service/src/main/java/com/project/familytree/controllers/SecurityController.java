@@ -1,6 +1,8 @@
 package com.project.familytree.controllers;
 
 import com.project.familytree.dto.*;
+import com.project.familytree.models.User;
+import com.project.familytree.repositories.UserRepository;
 import com.project.familytree.security.JwtCore;
 import com.project.familytree.services.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +24,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 
@@ -35,6 +38,7 @@ public class SecurityController {
     private final JwtCore jwtCore;
     private final UserService userService;
     private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
 
     @GetMapping("/ping")
     public ResponseEntity<?> ping() {
@@ -158,6 +162,13 @@ public class SecurityController {
                             signinRequest.getPassword()));
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtCore.generateToken(authentication);
+
+        // Update lastLoginAt on successful login
+        userRepository.findByEmail(signinRequest.getEmail()).ifPresent(user -> {
+            user.setLastLoginAt(LocalDateTime.now());
+            userRepository.save(user);
+        });
+
         return ResponseEntity.ok(CustomApiResponse.success(jwt));
     }
 

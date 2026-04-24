@@ -40,6 +40,12 @@ public class User {
     @Column(name = "enabled")
     private boolean enabled;
 
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    @Column(name = "deletion_warning_sent_at")
+    private LocalDateTime deletionWarningSentAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
