@@ -50,6 +50,9 @@ public class PersonDTO {
     @Schema(description = "Полное имя")
     private String fullName;
 
+    @Schema(description = "Количество медиафайлов персоны")
+    private long mediaCount;
+
     public PersonDTO() {
     }
 
@@ -183,5 +186,13 @@ public class PersonDTO {
 
     public void setFullName(String fullName) {
         this.fullName = fullName;
+    }
+
+    public long getMediaCount() {
+        return mediaCount;
+    }
+
+    public void setMediaCount(long mediaCount) {
+        this.mediaCount = mediaCount;
     }
 }

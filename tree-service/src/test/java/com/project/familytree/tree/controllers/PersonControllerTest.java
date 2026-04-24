@@ -364,7 +364,8 @@ class PersonControllerTest {
     @Test
     @WithMockUser(username = "user@test.com")
     void searchPersons_returns200_withResults() throws Exception {
-        when(treeService.searchPersons(TREE_ID, "Иван", USER_ID)).thenReturn(List.of(personDTO()));
+        when(treeService.searchPersons(eq(TREE_ID), eq("Иван"), isNull(), isNull(), isNull(), isNull(), eq(USER_ID)))
+                .thenReturn(List.of(personDTO()));
 
         mockMvc.perform(get("/trees/{treeId}/persons/search", TREE_ID)
                         .param("q", "Иван"))
@@ -376,7 +377,8 @@ class PersonControllerTest {
     @Test
     @WithMockUser(username = "user@test.com")
     void searchPersons_returnsEmptyList_whenNoMatch() throws Exception {
-        when(treeService.searchPersons(TREE_ID, "Несуществующий", USER_ID)).thenReturn(List.of());
+        when(treeService.searchPersons(eq(TREE_ID), eq("Несуществующий"), isNull(), isNull(), isNull(), isNull(), eq(USER_ID)))
+                .thenReturn(List.of());
 
         mockMvc.perform(get("/trees/{treeId}/persons/search", TREE_ID)
                         .param("q", "Несуществующий"))

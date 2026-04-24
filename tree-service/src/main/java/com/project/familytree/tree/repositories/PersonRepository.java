@@ -26,6 +26,29 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
     List<Person> searchByName(@Param("treeId") Long treeId, @Param("q") String q);
 
     /**
+     * Расширенный поиск персон с фильтрацией по имени, году рождения и месту рождения
+     */
+    @Query("SELECT p FROM Person p WHERE p.tree.id = :treeId " +
+           "AND (:query IS NULL OR LOWER(p.firstName) LIKE LOWER(CONCAT('%', :query, '%')) " +
+           "     OR LOWER(p.lastName) LIKE LOWER(CONCAT('%', :query, '%')) " +
+           "     OR LOWER(p.middleName) LIKE LOWER(CONCAT('%', :query, '%'))) " +
+           "AND (:birthYearFrom IS NULL OR YEAR(p.birthDate) >= :birthYearFrom) " +
+           "AND (:birthYearTo IS NULL OR YEAR(p.birthDate) <= :birthYearTo) " +
+           "AND (:birthPlace IS NULL OR LOWER(p.birthPlace) LIKE LOWER(CONCAT('%', :birthPlace, '%')))")
+    List<Person> searchPersons(@Param("treeId") Long treeId,
+                               @Param("query") String query,
+                               @Param("birthYearFrom") Integer birthYearFrom,
+                               @Param("birthYearTo") Integer birthYearTo,
+                               @Param("birthPlace") String birthPlace);
+
+    /**
+     * Персоны дерева у которых есть хотя бы один медиафайл
+     */
+    @Query("SELECT DISTINCT p FROM Person p WHERE p.tree.id = :treeId " +
+           "AND EXISTS (SELECT m FROM MediaFile m WHERE m.personId = p.id)")
+    List<Person> findByTreeIdWithMedia(@Param("treeId") Long treeId);
+
+    /**
      * Bulk count of persons grouped by treeId — used to populate personCount in TreeDTO
      * without N+1 queries.
      */

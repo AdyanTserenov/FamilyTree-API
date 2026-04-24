@@ -173,18 +173,24 @@ public class PersonController {
     }
 
     @GetMapping("/search")
-    @Operation(summary = "Поиск персон по имени",
-               description = "Ищет персон в дереве по имени, фамилии или отчеству (регистронезависимо). Требует роль VIEWER или выше.")
+    @Operation(summary = "Поиск персон по имени, датам и месту рождения",
+               description = "Ищет персон в дереве по имени/фамилии/отчеству, году рождения и месту рождения. " +
+                             "Поддерживает фильтр по наличию медиафайлов. Требует роль VIEWER или выше.")
     public ResponseEntity<CustomApiResponse<List<PersonDTO>>> searchPersons(
             @PathVariable Long treeId,
-            @RequestParam("q") String query) throws AccessDeniedException {
+            @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "birthYearFrom", required = false) Integer birthYearFrom,
+            @RequestParam(value = "birthYearTo", required = false) Integer birthYearTo,
+            @RequestParam(value = "birthPlace", required = false) String birthPlace,
+            @RequestParam(value = "hasMedia", required = false) Boolean hasMedia) throws AccessDeniedException {
 
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
-        log.info("Searching persons in tree {} with query '{}' by user {}", treeId, query, userId);
+        log.info("Searching persons in tree {} with query='{}', birthYearFrom={}, birthYearTo={}, birthPlace='{}', hasMedia={} by user {}",
+                treeId, query, birthYearFrom, birthYearTo, birthPlace, hasMedia, userId);
 
-        List<PersonDTO> results = treeService.searchPersons(treeId, query, userId);
-        log.info("Found {} persons matching '{}'", results.size(), query);
+        List<PersonDTO> results = treeService.searchPersons(treeId, query, birthYearFrom, birthYearTo, birthPlace, hasMedia, userId);
+        log.info("Found {} persons matching search criteria", results.size());
         return ResponseEntity.ok(CustomApiResponse.successData(results));
     }
 

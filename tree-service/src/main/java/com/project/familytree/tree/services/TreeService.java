@@ -384,11 +384,41 @@ public class TreeService {
                 .toList();
     }
 
-    public List<PersonDTO> searchPersons(Long treeId, String query, Long userId) throws AccessDeniedException {
+    public List<PersonDTO> searchPersons(Long treeId, String query, Integer birthYearFrom,
+                                         Integer birthYearTo, String birthPlace,
+                                         Boolean hasMedia, Long userId) throws AccessDeniedException {
         if (!canView(treeId, userId)) {
             throw new AccessDeniedException("Нет прав на просмотр дерева");
         }
-        List<Person> persons = personRepository.searchByName(treeId, query);
+
+        List<Person> persons;
+        boolean hasAdvancedFilters = birthYearFrom != null || birthYearTo != null
+                || (birthPlace != null && !birthPlace.isBlank());
+
+        if (hasAdvancedFilters) {
+            persons = personRepository.searchPersons(treeId,
+                    (query != null && !query.isBlank()) ? query : null,
+                    birthYearFrom,
+                    birthYearTo,
+                    (birthPlace != null && !birthPlace.isBlank()) ? birthPlace : null);
+        } else if (query != null && !query.isBlank()) {
+            persons = personRepository.searchByName(treeId, query);
+        } else {
+            persons = personRepository.findByTreeIdOrderByLastNameAscFirstNameAsc(treeId);
+        }
+
+        // Apply hasMedia filter
+        if (Boolean.TRUE.equals(hasMedia)) {
+            java.util.Set<Long> personIdsWithMedia = mediaFileRepository.findByTreeId(treeId)
+                    .stream()
+                    .filter(m -> m.getPerson() != null)
+                    .map(m -> m.getPerson().getId())
+                    .collect(Collectors.toSet());
+            persons = persons.stream()
+                    .filter(p -> personIdsWithMedia.contains(p.getId()))
+                    .toList();
+        }
+
         return persons.stream()
                 .map(p -> convertToDTO(p, treeId))
                 .toList();
@@ -744,7 +774,9 @@ public class TreeService {
             }
         }
 
-        return new PersonDTO(
+        long mediaCount = mediaFileRepository.countByPersonId(person.getId());
+
+        PersonDTO dto = new PersonDTO(
                 person.getId(),
                 person.getTree().getId(),
                 person.getFirstName(),
@@ -760,5 +792,7 @@ public class TreeService {
                 relationshipDTOs,
                 person.getFullName()
         );
+        dto.setMediaCount(mediaCount);
+        return dto;
     }
 }
