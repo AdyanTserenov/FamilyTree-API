@@ -1,6 +1,8 @@
 package com.project.familytree.tree.repositories;
 
 import com.project.familytree.tree.models.Comment;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,6 +27,12 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     List<Comment> findByPersonId(@Param("personId") Long personId);
 
     /**
+     * Комментарии верхнего уровня к персоне с пагинацией (новые первые)
+     */
+    @Query("SELECT c FROM Comment c WHERE c.person.id = :personId AND c.parentComment IS NULL ORDER BY c.createdAt DESC")
+    Page<Comment> findTopLevelByPersonIdPaged(@Param("personId") Long personId, Pageable pageable);
+
+    /**
      * Комментарии верхнего уровня к персоне (без родителя)
      */
     @Query("SELECT c FROM Comment c WHERE c.person.id = :personId AND c.parentComment IS NULL ORDER BY c.createdAt ASC")
@@ -40,4 +48,10 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
      * Количество комментариев к персоне (включая удалённые)
      */
     long countByPersonId(Long personId);
+
+    /**
+     * Количество комментариев верхнего уровня к персоне
+     */
+    @Query("SELECT COUNT(c) FROM Comment c WHERE c.person.id = :personId AND c.parentComment IS NULL")
+    long countTopLevelByPersonId(@Param("personId") Long personId);
 }

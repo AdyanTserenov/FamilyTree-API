@@ -1,6 +1,8 @@
 package com.project.familytree.tree.repositories;
 
 import com.project.familytree.tree.models.Notification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -19,10 +21,22 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByUserIdOrderByReadAscCreatedAtDesc(@Param("userId") Long userId);
 
     /**
+     * Уведомления пользователя с пагинацией: сначала непрочитанные, затем по дате (новые первые)
+     */
+    @Query("SELECT n FROM Notification n WHERE n.user.id = :userId ORDER BY n.read ASC, n.createdAt DESC")
+    Page<Notification> findByUserIdPaged(@Param("userId") Long userId, Pageable pageable);
+
+    /**
      * Количество непрочитанных уведомлений пользователя
      */
     @Query("SELECT COUNT(n) FROM Notification n WHERE n.user.id = :userId AND n.read = false")
     long countUnreadByUserId(@Param("userId") Long userId);
+
+    /**
+     * Общее количество уведомлений пользователя
+     */
+    @Query("SELECT COUNT(n) FROM Notification n WHERE n.user.id = :userId")
+    long countByUserId(@Param("userId") Long userId);
 
     /**
      * Отметить все уведомления пользователя как прочитанные

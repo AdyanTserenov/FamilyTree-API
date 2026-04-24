@@ -3,12 +3,15 @@ package com.project.familytree.tree.services;
 import com.project.familytree.auth.models.User;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.NotificationDTO;
+import com.project.familytree.tree.dto.PagedNotificationsResponse;
 import com.project.familytree.tree.impls.NotificationType;
 import com.project.familytree.tree.models.Notification;
 import com.project.familytree.tree.exceptions.ResourceNotFoundException;
 import com.project.familytree.tree.repositories.NotificationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,6 +72,20 @@ public class NotificationService {
                 .stream()
                 .map(this::convertToDTO)
                 .toList();
+    }
+
+    /**
+     * Получить уведомления пользователя с пагинацией (непрочитанные первыми)
+     */
+    public PagedNotificationsResponse getUserNotificationsPaged(Long userId, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size);
+        Page<Notification> notifPage = notificationRepository.findByUserIdPaged(userId, pageRequest);
+
+        List<NotificationDTO> dtos = notifPage.getContent().stream()
+                .map(this::convertToDTO)
+                .toList();
+
+        return new PagedNotificationsResponse(dtos, notifPage.getTotalElements(), !notifPage.isLast());
     }
 
     /**

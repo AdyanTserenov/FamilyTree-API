@@ -3,6 +3,7 @@ package com.project.familytree.tree.services;
 import com.project.familytree.auth.models.User;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.CommentDTO;
+import com.project.familytree.tree.dto.PagedCommentsResponse;
 import com.project.familytree.tree.impls.NotificationType;
 import com.project.familytree.tree.impls.TreeRole;
 import com.project.familytree.tree.models.Comment;
@@ -14,6 +15,9 @@ import com.project.familytree.tree.exceptions.BusinessException;
 import com.project.familytree.tree.exceptions.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,6 +84,38 @@ public class CommentService {
         return allDTOs.stream()
                 .filter(c -> c.getParentCommentId() == null)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Получить комментарии к персоне с пагинацией (только верхний уровень, ответы подгружаются целиком)
+     */
+    public PagedCommentsResponse getCommentsPaged(Long treeId, Long personId, Long userId,
+                                                   int page, int size) throws AccessDeniedException {
+        if (!treeService.canView(treeId, userId)) {
+            throw new AccessDeniedException("Нет прав на просмотр дерева");
+        }
+
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Comment> topLevelPage = commentRepository.findTopLevelByPersonIdPaged(personId, pageRequest);
+
+        // Для каждого комментария верхнего уровня подгружаем ответы
+        List<CommentDTO> topLevelDTOs = topLevelPage.getContent().stream()
+                .map(comment -> {
+                    CommentDTO dto = convertToDTO(comment);
+                    List<CommentDTO> replies = commentRepository.findRepliesByParentId(comment.getId())
+                            .stream()
+                            .map(this::convertToDTO)
+                            .collect(Collectors.toList());
+                    dto.setReplies(replies);
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        return new PagedCommentsResponse(
+                topLevelDTOs,
+                topLevelPage.getTotalElements(),
+                !topLevelPage.isLast()
+        );
     }
 
     /**

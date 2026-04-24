@@ -3,6 +3,7 @@ package com.project.familytree.tree.controllers;
 import com.project.familytree.auth.dto.CustomApiResponse;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.NotificationDTO;
+import com.project.familytree.tree.dto.PagedNotificationsResponse;
 import com.project.familytree.tree.services.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,11 +35,19 @@ public class NotificationController {
 
     @GetMapping
     @Operation(summary = "Получить уведомления",
-               description = "Возвращает все уведомления текущего пользователя. Непрочитанные идут первыми.")
-    public ResponseEntity<CustomApiResponse<List<NotificationDTO>>> getNotifications() {
+               description = "Возвращает уведомления текущего пользователя. Непрочитанные идут первыми. " +
+                             "Если передан параметр page — возвращает страницу с полями data/totalCount/hasMore.")
+    public ResponseEntity<?> getNotifications(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(defaultValue = "15") int size) {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
-        log.info("Getting notifications for user {}", userId);
+        log.info("Getting notifications for user {} (page={}, size={})", userId, page, size);
+
+        if (page != null) {
+            PagedNotificationsResponse paged = notificationService.getUserNotificationsPaged(userId, page, size);
+            return ResponseEntity.ok(CustomApiResponse.successData(paged));
+        }
 
         List<NotificationDTO> notifications = notificationService.getUserNotifications(userId);
         return ResponseEntity.ok(CustomApiResponse.successData(notifications));

@@ -4,6 +4,7 @@ import com.project.familytree.auth.dto.CustomApiResponse;
 import com.project.familytree.auth.services.UserService;
 import com.project.familytree.tree.dto.CommentDTO;
 import com.project.familytree.tree.dto.CommentRequest;
+import com.project.familytree.tree.dto.PagedCommentsResponse;
 import com.project.familytree.tree.services.CommentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,14 +36,24 @@ public class CommentController {
 
     @GetMapping
     @Operation(summary = "Получить комментарии к персоне",
-               description = "Возвращает дерево комментариев (с вложенными ответами). Требует роль VIEWER или выше.")
-    public ResponseEntity<CustomApiResponse<List<CommentDTO>>> getComments(
+               description = "Возвращает комментарии с пагинацией (page/size). " +
+                             "Если page и size не переданы — возвращает все комментарии. " +
+                             "Требует роль VIEWER или выше.")
+    public ResponseEntity<?> getComments(
             @PathVariable Long treeId,
-            @PathVariable Long personId) throws AccessDeniedException {
+            @PathVariable Long personId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(defaultValue = "10") int size) throws AccessDeniedException {
 
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userService.findIdByDetails(userDetails);
-        log.info("Getting comments for person {} in tree {} by user {}", personId, treeId, userId);
+        log.info("Getting comments for person {} in tree {} by user {} (page={}, size={})",
+                personId, treeId, userId, page, size);
+
+        if (page != null) {
+            PagedCommentsResponse paged = commentService.getCommentsPaged(treeId, personId, userId, page, size);
+            return ResponseEntity.ok(CustomApiResponse.successData(paged));
+        }
 
         List<CommentDTO> comments = commentService.getComments(treeId, personId, userId);
         return ResponseEntity.ok(CustomApiResponse.successData(comments));
