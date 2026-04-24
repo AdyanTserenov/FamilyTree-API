@@ -510,6 +510,16 @@ public class TreeService {
             throw new AccessDeniedException("Персоны принадлежат разным деревьям");
         }
 
+        // Для PARENT_CHILD: person1 = родитель, person2 = ребёнок
+        // Проверяем что дата рождения родителя раньше даты рождения ребёнка
+        if (request.getType() == com.project.familytree.tree.impls.RelationshipType.PARENT_CHILD) {
+            if (person1.getBirthDate() != null && person2.getBirthDate() != null) {
+                if (!person1.getBirthDate().isBefore(person2.getBirthDate())) {
+                    throw new BusinessException("Дата рождения родителя должна быть раньше даты рождения ребёнка");
+                }
+            }
+        }
+
         // Проверяем, что такая связь ещё не существует
         boolean exists = relationshipRepository
                 .findByTreeIdAndPersonsAndType(treeId, request.getPerson1Id(), request.getPerson2Id(), request.getType())
@@ -520,6 +530,13 @@ public class TreeService {
 
         Tree tree = getById(treeId);
         Relationship relationship = new Relationship(tree, person1, person2, request.getType());
+
+        // Для PARTNERSHIP сохраняем даты начала и окончания
+        if (request.getType() == com.project.familytree.tree.impls.RelationshipType.PARTNERSHIP) {
+            relationship.setStartDate(request.getStartDate());
+            relationship.setEndDate(request.getEndDate());
+        }
+
         relationshipRepository.save(relationship);
     }
 
@@ -712,7 +729,9 @@ public class TreeService {
                         new RelationshipDTO.PersonSummary(
                                 r.getPerson2().getId(),
                                 r.getPerson2().getFirstName(),
-                                r.getPerson2().getLastName())))
+                                r.getPerson2().getLastName()),
+                        r.getStartDate(),
+                        r.getEndDate()))
                 .toList();
 
         // Если avatarUrl — S3-ключ (начинается с "trees/"), генерируем presigned URL

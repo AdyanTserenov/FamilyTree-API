@@ -3,6 +3,8 @@ package com.project.familytree.tree.dto;
 import com.project.familytree.tree.impls.RelationshipType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.time.LocalDate;
+
 @Schema(description = "Связь между персонами")
 public class RelationshipDTO {
 
@@ -23,6 +25,12 @@ public class RelationshipDTO {
 
     @Schema(description = "Краткие данные второй персоны")
     private PersonSummary person2;
+
+    @Schema(description = "Дата начала (только для PARTNERSHIP)")
+    private LocalDate startDate;
+
+    @Schema(description = "Дата окончания (только для PARTNERSHIP)")
+    private LocalDate endDate;
 
     /** Краткое представление персоны для отображения в связях */
     public static class PersonSummary {
@@ -84,6 +92,19 @@ public class RelationshipDTO {
         this.person2 = person2;
     }
 
+    public RelationshipDTO(Long id, Long person1Id, Long person2Id, RelationshipType type,
+                           PersonSummary person1, PersonSummary person2,
+                           LocalDate startDate, LocalDate endDate) {
+        this.id = id;
+        this.person1Id = person1Id;
+        this.person2Id = person2Id;
+        this.type = type;
+        this.person1 = person1;
+        this.person2 = person2;
+        this.startDate = startDate;
+        this.endDate = endDate;
+    }
+
     public Long getId() {
         return id;
     }
@@ -130,5 +151,21 @@ public class RelationshipDTO {
 
     public void setPerson2(PersonSummary person2) {
         this.person2 = person2;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
     }
 }

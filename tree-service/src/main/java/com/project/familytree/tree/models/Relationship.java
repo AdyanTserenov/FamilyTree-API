@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(
@@ -40,6 +41,12 @@ public class Relationship {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private RelationshipType type;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     @CreationTimestamp
     @Column(name = "created_at")
@@ -93,6 +100,22 @@ public class Relationship {
 
     public void setType(RelationshipType type) {
         this.type = type;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
     }
 
     public Instant getCreatedAt() {
