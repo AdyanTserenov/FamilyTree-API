@@ -32,6 +32,9 @@ public class PersonRequest {
     @Schema(description = "Место смерти", example = "Санкт-Петербург")
     private String deathPlace;
 
+    @Schema(description = "Профессия / род занятий", example = "Инженер")
+    private String occupation;
+
     @Schema(description = "Биография")
     private String biography;
 
@@ -44,8 +47,8 @@ public class PersonRequest {
 
     public PersonRequest(String firstName, String lastName, String middleName,
                          LocalDate birthDate, LocalDate deathDate,
-                         String birthPlace, String deathPlace, String biography,
-                         Gender gender) {
+                         String birthPlace, String deathPlace, String occupation,
+                         String biography, Gender gender) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.middleName = middleName;
@@ -53,6 +56,7 @@ public class PersonRequest {
         this.deathDate = deathDate;
         this.birthPlace = birthPlace;
         this.deathPlace = deathPlace;
+        this.occupation = occupation;
         this.biography = biography;
         this.gender = gender;
     }
@@ -111,6 +115,14 @@ public class PersonRequest {
 
     public void setDeathPlace(String deathPlace) {
         this.deathPlace = deathPlace;
+    }
+
+    public String getOccupation() {
+        return occupation;
+    }
+
+    public void setOccupation(String occupation) {
+        this.occupation = occupation;
     }
 
     public String getBiography() {

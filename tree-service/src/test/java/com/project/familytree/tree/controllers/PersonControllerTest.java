@@ -72,7 +72,7 @@ class PersonControllerTest {
         return new PersonRequest(
                 "Иван", "Иванов", "Иванович",
                 LocalDate.of(1990, 1, 1), null,
-                "Москва", null, "Биография", Gender.MALE);
+                "Москва", null, null, "Биография", Gender.MALE);
     }
 
     /** A minimal PersonDTO returned by the service. */
@@ -115,7 +115,7 @@ class PersonControllerTest {
     @WithMockUser(username = "user@test.com")
     void createPerson_returns400_whenFirstNameIsBlank() throws Exception {
         PersonRequest bad = new PersonRequest(
-                "", "Иванов", null, null, null, null, null, null, Gender.MALE);
+                "", "Иванов", null, null, null, null, null, null, null, Gender.MALE);
 
         mockMvc.perform(post("/trees/{treeId}/persons", TREE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -227,7 +227,7 @@ class PersonControllerTest {
     @WithMockUser(username = "user@test.com")
     void updatePerson_returns400_whenLastNameIsBlank() throws Exception {
         PersonRequest bad = new PersonRequest(
-                "Иван", "", null, null, null, null, null, null, Gender.MALE);
+                "Иван", "", null, null, null, null, null, null, null, Gender.MALE);
 
         mockMvc.perform(put("/trees/{treeId}/persons/{personId}", TREE_ID, PERSON_ID)
                         .contentType(MediaType.APPLICATION_JSON)

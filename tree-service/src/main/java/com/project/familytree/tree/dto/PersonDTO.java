@@ -35,6 +35,9 @@ public class PersonDTO {
     @Schema(description = "Место смерти")
     private String deathPlace;
 
+    @Schema(description = "Профессия / род занятий")
+    private String occupation;
+
     @Schema(description = "Биография")
     private String biography;
 
@@ -74,6 +77,16 @@ public class PersonDTO {
         this.gender = gender;
         this.relationships = relationships;
         this.fullName = fullName;
+    }
+
+    public PersonDTO(Long id, Long treeId, String firstName, String lastName, String middleName,
+                     LocalDate birthDate, LocalDate deathDate,
+                     String birthPlace, String deathPlace, String occupation, String biography,
+                     String avatarUrl, Gender gender, List<RelationshipDTO> relationships,
+                     String fullName) {
+        this(id, treeId, firstName, lastName, middleName, birthDate, deathDate,
+                birthPlace, deathPlace, biography, avatarUrl, gender, relationships, fullName);
+        this.occupation = occupation;
     }
 
     public Long getId() {
@@ -146,6 +159,14 @@ public class PersonDTO {
 
     public void setDeathPlace(String deathPlace) {
         this.deathPlace = deathPlace;
+    }
+
+    public String getOccupation() {
+        return occupation;
+    }
+
+    public void setOccupation(String occupation) {
+        this.occupation = occupation;
     }
 
     public String getBiography() {

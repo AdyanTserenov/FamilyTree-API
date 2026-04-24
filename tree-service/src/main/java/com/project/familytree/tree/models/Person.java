@@ -45,6 +45,9 @@ public class Person {
     @Column(name = "death_place")
     private String deathPlace;
 
+    @Column(name = "occupation")
+    private String occupation;
+
     @Column(name = "biography", columnDefinition = "TEXT")
     private String biography;
 
@@ -145,6 +148,14 @@ public class Person {
 
     public void setDeathPlace(String deathPlace) {
         this.deathPlace = deathPlace;
+    }
+
+    public String getOccupation() {
+        return occupation;
+    }
+
+    public void setOccupation(String occupation) {
+        this.occupation = occupation;
     }
 
     public String getBiography() {

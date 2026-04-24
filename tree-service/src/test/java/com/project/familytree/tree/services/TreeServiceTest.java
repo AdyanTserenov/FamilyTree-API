@@ -135,7 +135,7 @@ class TreeServiceTest {
         PersonRequest request = new PersonRequest(
                 "Иван", "Иванов", "Иванович",
                 LocalDate.of(1990, 1, 1), null,
-                "Москва", null, "Биография",
+                "Москва", null, null, "Биография",
                 Gender.MALE
         );
 
@@ -157,7 +157,7 @@ class TreeServiceTest {
         when(membershipRepository.findByTreeIdAndUserId(1L, 10L)).thenReturn(Optional.of(viewerMembership));
 
         PersonRequest request = new PersonRequest(
-                "Иван", "Иванов", null, null, null, null, null, null, Gender.MALE
+                "Иван", "Иванов", null, null, null, null, null, null, null, Gender.MALE
         );
 
         assertThatThrownBy(() -> treeService.createPerson(1L, request, 10L))
@@ -178,7 +178,7 @@ class TreeServiceTest {
         PersonRequest request = new PersonRequest(
                 "Пётр", "Петров", "Петрович",
                 LocalDate.of(1985, 5, 15), LocalDate.of(2020, 3, 10),
-                "Санкт-Петербург", "Новосибирск", "Обновлённая биография",
+                "Санкт-Петербург", "Новосибирск", null, "Обновлённая биография",
                 Gender.MALE
         );
 

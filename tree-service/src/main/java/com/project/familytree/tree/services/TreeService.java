@@ -347,6 +347,7 @@ public class TreeService {
         person.setDeathDate(request.getDeathDate());
         person.setBirthPlace(request.getBirthPlace());
         person.setDeathPlace(request.getDeathPlace());
+        person.setOccupation(request.getOccupation());
         person.setBiography(request.getBiography());
 
         person = personRepository.save(person);
@@ -478,6 +479,8 @@ public class TreeService {
                 request.getDeathDate() != null ? request.getDeathDate().toString() : null);
         recordFieldChange(personId, treeId, userId, userName, "birthPlace",
                 person.getBirthPlace(), request.getBirthPlace());
+        recordFieldChange(personId, treeId, userId, userName, "occupation",
+                person.getOccupation(), request.getOccupation());
         recordFieldChange(personId, treeId, userId, userName, "biography",
                 person.getBiography(), request.getBiography());
 
@@ -488,6 +491,7 @@ public class TreeService {
         person.setDeathDate(request.getDeathDate());
         person.setBirthPlace(request.getBirthPlace());
         person.setDeathPlace(request.getDeathPlace());
+        person.setOccupation(request.getOccupation());
         person.setBiography(request.getBiography());
         person.setGender(request.getGender());
 
@@ -792,6 +796,7 @@ public class TreeService {
                 relationshipDTOs,
                 person.getFullName()
         );
+        dto.setOccupation(person.getOccupation());
         dto.setMediaCount(mediaCount);
         return dto;
     }
